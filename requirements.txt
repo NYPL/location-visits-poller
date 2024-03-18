@@ -1,0 +1,1 @@
+nypl-py-utils[avro-encoder,kinesis-client,config-helper]==1.1.4
