@@ -1,3 +1,3 @@
-## 2024-03-xx -- v0.0.1
+## 2024-03-29 -- v0.0.1
 ### Added
-- Initial commit
+- Initial commit without any recovery queries

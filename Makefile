@@ -15,7 +15,7 @@ run:
 	python main.py
 
 test:
-	pytest tests -W ignore
+	pytest tests
 
 lint:
 	black ./ --check --exclude="(env/)|(tests/)"
