@@ -114,7 +114,7 @@ class ShopperTrakApiClient:
         try:
             root = ET.fromstring(response_text)
             error = root.find("error")
-        except Exception as e:
+        except ET.ParseError as e:
             self.logger.error(f"Could not parse XML response {response_text}: {e}")
             raise ShopperTrakApiClientError(
                 f"Could not parse XML response {response_text}: {e}"
