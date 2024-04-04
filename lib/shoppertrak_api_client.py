@@ -63,7 +63,26 @@ class ShopperTrakApiClient:
     def parse_response(self, xml_root, input_date_str, is_recovery_mode=False):
         """
         Takes API response as an XML root and returns a list of dictionaries containing
-        result records
+        result records. The XML root is expected to look as follows:
+
+        <sites>
+            <site siteID="lib a">
+                <date dateValue="20240101">
+                    <entrance name="EP 01">
+                        <traffic code="01" exits="10" enters="11" startTime="000000"/>
+                        <traffic code="02" exits="0" enters="0" startTime="001500"/>
+                        ...
+                    </entrance>
+                    <entrance name="EP2">
+                        <traffic .../>
+                        ...
+                    </entrance>
+                </date>
+            </site>
+            <site siteID="lib b">
+                ...
+            </site>
+        </sites>
         """
         rows = []
         for site_xml in xml_root.findall("site"):
