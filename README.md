@@ -18,7 +18,7 @@ docker container run -e ENVIRONMENT=<env> -e AWS_ACCESS_KEY_ID=<> -e AWS_SECRET_
 ## Git workflow
 This repo has only two branches: [`main`](https://github.com/NYPL/location-visits-poller/tree/main), which contains the latest and greatest commits and [`production`](https://github.com/NYPL/location-visits-poller/tree/production), which contains what's in our production environment.
 
-### Ideal Workflow
+### Workflow
 - Cut a feature branch off of `main`
 - Commit changes to your feature branch
 - File a pull request against `main` and assign a reviewer

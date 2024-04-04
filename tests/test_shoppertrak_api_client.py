@@ -225,7 +225,7 @@ class TestPipelineController:
                 == _PARSED_RESULT
             )
 
-        assert "Unknown code: '03'. Setting is_real to False" in caplog.text
+        assert "Unknown code: '03'. Setting is_healthy_orbit to False" in caplog.text
 
     def test_parse_response_blank_str(self, test_instance, caplog):
         _MODIFIED_RESPONSE = _TEST_API_RESPONSE.replace('code="02" ', "")

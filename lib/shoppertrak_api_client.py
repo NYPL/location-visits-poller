@@ -91,7 +91,8 @@ class ShopperTrakApiClient:
                         is_healthy_orbit = code == "01"
                         if code != "01" and code != "02":
                             self.logger.warning(
-                                f"Unknown code: '{code}'. Setting is_real to False"
+                                f"Unknown code: '{code}'. Setting is_healthy_orbit to "
+                                f"False"
                             )
 
                         if is_healthy_orbit or not is_recovery_mode:
@@ -138,12 +139,11 @@ class ShopperTrakApiClient:
             return root
 
     def _get_xml_str(self, xml, attribute):
-        attribute_str = (xml.get(attribute) or "").strip()
-        if not attribute_str:
+        if not xml.get(attribute):
             self.logger.warning(f"Found blank '{attribute}'")
             return None
         else:
-            return attribute_str
+            return xml.get(attribute).strip()
 
     def _cast_str_to_int(self, input_str):
         if not input_str:
