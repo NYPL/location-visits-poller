@@ -43,40 +43,40 @@ _TEST_API_RESPONSE = _TEST_API_RESPONSE.replace("\t", "")
 
 _PARSED_RESULT = [
     {"shoppertrak_site_id": "site1", "orbit": 1,
-     "increment_start": "2023-12-31T00:00:00", "enters": 0, "exits": 0,
+     "increment_start": "2023-12-31 00:00:00", "enters": 0, "exits": 0,
      "is_healthy_orbit": True, "is_recovery_data": False, "poll_date": "2024-01-01"},
     {"shoppertrak_site_id": "site1", "orbit": 1,
-     "increment_start": "2023-12-31T01:00:00", "enters": 2, "exits": 1,
+     "increment_start": "2023-12-31 01:00:00", "enters": 2, "exits": 1,
      "is_healthy_orbit": True, "is_recovery_data": False, "poll_date": "2024-01-01"},
     {"shoppertrak_site_id": "site1", "orbit": 1,
-     "increment_start": "2023-12-31T02:00:00", "enters": 4, "exits": 3,
+     "increment_start": "2023-12-31 02:00:00", "enters": 4, "exits": 3,
      "is_healthy_orbit": True, "is_recovery_data": False, "poll_date": "2024-01-01"},
     {"shoppertrak_site_id": "site1", "orbit": 1,
-     "increment_start": "2023-12-31T03:00:00", "enters": 0, "exits": 0,
+     "increment_start": "2023-12-31 03:00:00", "enters": 0, "exits": 0,
      "is_healthy_orbit": True, "is_recovery_data": False, "poll_date": "2024-01-01"},
     {"shoppertrak_site_id": "site1", "orbit": 2,
-     "increment_start": "2023-12-31T00:00:00", "enters": 6, "exits": 5,
+     "increment_start": "2023-12-31 00:00:00", "enters": 6, "exits": 5,
      "is_healthy_orbit": True, "is_recovery_data": False, "poll_date": "2024-01-01"},
     {"shoppertrak_site_id": "site1", "orbit": 2,
-     "increment_start": "2023-12-31T01:00:00", "enters": 0, "exits": 0,
+     "increment_start": "2023-12-31 01:00:00", "enters": 0, "exits": 0,
      "is_healthy_orbit": True, "is_recovery_data": False, "poll_date": "2024-01-01"},
     {"shoppertrak_site_id": "site1", "orbit": 2,
-     "increment_start": "2023-12-31T02:00:00", "enters": 0, "exits": 0,
+     "increment_start": "2023-12-31 02:00:00", "enters": 0, "exits": 0,
      "is_healthy_orbit": False, "is_recovery_data": False, "poll_date": "2024-01-01"},
     {"shoppertrak_site_id": "site1", "orbit": 2,
-     "increment_start": "2023-12-31T03:00:00", "enters": 80, "exits": 70,
+     "increment_start": "2023-12-31 03:00:00", "enters": 80, "exits": 70,
      "is_healthy_orbit": False, "is_recovery_data": False, "poll_date": "2024-01-01"},
     {"shoppertrak_site_id": "site2", "orbit": 1,
-     "increment_start": "2023-12-31T00:00:00", "enters": 0, "exits": 0,
+     "increment_start": "2023-12-31 00:00:00", "enters": 0, "exits": 0,
      "is_healthy_orbit": False, "is_recovery_data": False, "poll_date": "2024-01-01"},
     {"shoppertrak_site_id": "site2", "orbit": 1,
-     "increment_start": "2023-12-31T01:00:00", "enters": 0, "exits": 0,
+     "increment_start": "2023-12-31 01:00:00", "enters": 0, "exits": 0,
      "is_healthy_orbit": False, "is_recovery_data": False, "poll_date": "2024-01-01"},
     {"shoppertrak_site_id": "site2", "orbit": 1,
-     "increment_start": "2023-12-31T02:00:00", "enters": 0, "exits": 0,
+     "increment_start": "2023-12-31 02:00:00", "enters": 0, "exits": 0,
      "is_healthy_orbit": False, "is_recovery_data": False, "poll_date": "2024-01-01"},
     {"shoppertrak_site_id": "site2", "orbit": 1,
-     "increment_start": "2023-12-31T03:00:00", "enters": 0, "exits": 0,
+     "increment_start": "2023-12-31 03:00:00", "enters": 0, "exits": 0,
      "is_healthy_orbit": False, "is_recovery_data": False, "poll_date": "2024-01-01"},
 ]
 
@@ -119,6 +119,19 @@ class TestPipelineController:
         with pytest.raises(ShopperTrakApiClientError):
             test_instance.query("test_endpoint", "20231231")
 
+    def test_query_duplicate_sites(self, test_instance, requests_mock, mocker):
+        requests_mock.get(
+            "https://test_shoppertrak_url/test_endpoint"
+            "?date=20231231&increment=15&total_property=N",
+            text="Error 104",
+        )
+        mocked_check_response_method = mocker.patch(
+            "lib.ShopperTrakApiClient._check_response", return_value="E104"
+        )
+
+        assert test_instance.query("test_endpoint", "20231231") is None
+        mocked_check_response_method.assert_called_once_with("Error 104")
+
     def test_query_retry_success(self, test_instance, requests_mock, mocker):
         mock_sleep = mocker.patch("time.sleep")
         requests_mock.get(
@@ -130,7 +143,7 @@ class TestPipelineController:
         xml_root = mocker.MagicMock()
         mocked_check_response_method = mocker.patch(
             "lib.ShopperTrakApiClient._check_response",
-            side_effect=[None, None, xml_root],
+            side_effect=["E108", "E108", xml_root],
         )
 
         assert test_instance.query("test_endpoint", "20231231") == xml_root
@@ -151,7 +164,7 @@ class TestPipelineController:
         )
         mocked_check_response_method = mocker.patch(
             "lib.ShopperTrakApiClient._check_response",
-            side_effect=[None, None, None],
+            side_effect=["E108", "E108", "E108"],
         )
 
         with pytest.raises(ShopperTrakApiClientError):
@@ -161,13 +174,22 @@ class TestPipelineController:
         assert mock_sleep.call_count == 2
 
     def test_check_response(self, test_instance):
-        assert test_instance._check_response(_TEST_API_RESPONSE) is not None
+        CHECKED_RESPONSE = test_instance._check_response(_TEST_API_RESPONSE)
+        assert CHECKED_RESPONSE is not None
+        assert CHECKED_RESPONSE != "E104"
+        assert CHECKED_RESPONSE != "E108"
+
+    def test_check_response_duplicate_site(self, test_instance):
+        assert test_instance._check_response(
+            '<?xml version="1.0" ?><message><error>E104</error><description>The '
+            'Customer Store ID supplied has multiple matches.</description></message>'
+        ) == "E104"
 
     def test_check_response_busy(self, test_instance):
         assert test_instance._check_response(
             '<?xml version="1.0" ?><message><error>E108</error>'
             '<description>Server is busy</description></message>'
-        ) is None
+        ) == "E108"
 
     def test_check_response_unparsable(self, test_instance):
         with pytest.raises(ShopperTrakApiClientError):
@@ -199,12 +221,8 @@ class TestPipelineController:
             row["is_recovery_data"] = True
 
         with caplog.at_level(logging.WARNING):
-            assert (
-                test_instance.parse_response(
-                    ET.fromstring(_TEST_API_RESPONSE), "20231231", True
-                )
-                == _TEST_RESULT
-            )
+            assert test_instance.parse_response(
+                ET.fromstring(_TEST_API_RESPONSE), "20231231", True) == _TEST_RESULT
 
         assert caplog.text == ""
 
@@ -218,25 +236,36 @@ class TestPipelineController:
         _MODIFIED_RESPONSE = _TEST_API_RESPONSE.replace('code="02"', 'code="03"')
 
         with caplog.at_level(logging.WARNING):
-            assert (
-                test_instance.parse_response(
-                    ET.fromstring(_MODIFIED_RESPONSE), "20231231"
-                )
-                == _PARSED_RESULT
-            )
+            assert test_instance.parse_response(
+                ET.fromstring(_MODIFIED_RESPONSE), "20231231") == _PARSED_RESULT
 
         assert "Unknown code: '03'. Setting is_healthy_orbit to False" in caplog.text
+
+    def test_parse_response_duplicate_data(self, test_instance, caplog):
+        _MODIFIED_RESPONSE = _TEST_API_RESPONSE.replace(
+            'enters="4" startTime="020000"', 'enters="4" startTime="010000"'
+        )
+        _TEST_RESULT = deepcopy(_PARSED_RESULT)
+        _TEST_RESULT[2]["increment_start"] = "2023-12-31 01:00:00"
+
+        with caplog.at_level(logging.WARNING):
+            assert test_instance.parse_response(
+                ET.fromstring(_MODIFIED_RESPONSE), "20231231") == _TEST_RESULT
+
+        assert (
+            "Received multiple results from the API for the same site/date/orbit/"
+            "timestamp combination: {'shoppertrak_site_id': 'site1', 'orbit': 1, "
+            "'increment_start': '2023-12-31 01:00:00', 'enters': 4, 'exits': 3, "
+            "'is_healthy_orbit': True, 'is_recovery_data': False, "
+            "'poll_date': '2024-01-01'}"
+        ) in caplog.text
 
     def test_parse_response_blank_str(self, test_instance, caplog):
         _MODIFIED_RESPONSE = _TEST_API_RESPONSE.replace('code="02" ', "")
 
         with caplog.at_level(logging.WARNING):
-            assert (
-                test_instance.parse_response(
-                    ET.fromstring(_MODIFIED_RESPONSE), "20231231"
-                )
-                == _PARSED_RESULT
-            )
+            assert test_instance.parse_response(
+                ET.fromstring(_MODIFIED_RESPONSE), "20231231") == _PARSED_RESULT
 
         assert "Found blank 'code'" in caplog.text
 
@@ -248,12 +277,8 @@ class TestPipelineController:
         _TEST_RESULT[2]["exits"] = None
 
         with caplog.at_level(logging.WARNING):
-            assert (
-                test_instance.parse_response(
-                    ET.fromstring(_MODIFIED_RESPONSE), "20231231"
-                )
-                == _TEST_RESULT
-            )
+            assert test_instance.parse_response(
+                ET.fromstring(_MODIFIED_RESPONSE), "20231231") == _TEST_RESULT
 
         assert "Input string 'bad' cannot be cast to an int" in caplog.text
         assert "Found blank 'exits'" in caplog.text

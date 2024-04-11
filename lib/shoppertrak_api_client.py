@@ -46,19 +46,24 @@ class ShopperTrakApiClient:
             ) from None
 
         response_root = self._check_response(response.text)
-        if response_root is not None:
-            return response_root
-        elif query_count < self.max_retries:
-            self.logger.info("Waiting 5 minutes and trying again")
-            time.sleep(300)
-            return self.query(endpoint, date_str, query_count + 1)
+        if response_root == "E104":
+            return None
+        elif response_root == "E108":
+            if query_count < self.max_retries:
+                self.logger.info("Waiting 5 minutes and trying again")
+                time.sleep(300)
+                return self.query(endpoint, date_str, query_count + 1)
+            else:
+                self.logger.error(
+                    f"Reached max retries: sent {self.max_retries} queries with no "
+                    f"response"
+                )
+                raise ShopperTrakApiClientError(
+                    f"Reached max retries: sent {self.max_retries} queries with no "
+                    f"response"
+                )
         else:
-            self.logger.error(
-                f"Reached max retries: sent {self.max_retries} queries with no response"
-            )
-            raise ShopperTrakApiClientError(
-                f"Reached max retries: sent {self.max_retries} queries with no response"
-            )
+            return response_root
 
     def parse_response(self, xml_root, input_date_str, is_recovery_mode=False):
         """
@@ -99,6 +104,7 @@ class ShopperTrakApiClient:
                         f"{input_date_str}\nResponse date: {date_val}"
                     )
                 for entrance_xml in date_xml.findall("entrance"):
+                    seen_timestamps = set()
                     entrance_val = self._get_xml_str(entrance_xml, "name")
                     if entrance_val:
                         entrance_val = self._cast_str_to_int(entrance_val.lstrip("EP"))
@@ -110,8 +116,14 @@ class ShopperTrakApiClient:
                             entrance_val,
                             is_recovery_mode,
                         )
+                        if result_row["increment_start"] in seen_timestamps:
+                            self.logger.warning(
+                                f"Received multiple results from the API for the same "
+                                f"site/date/orbit/timestamp combination: {result_row}"
+                            )
                         if result_row["is_healthy_orbit"] or not is_recovery_mode:
                             rows.append(result_row)
+                        seen_timestamps.add(result_row["increment_start"])
         return rows
 
     def _form_row(
@@ -121,7 +133,7 @@ class ShopperTrakApiClient:
         start_time_str = self._get_xml_str(traffic_xml, "startTime")
         start_dt_str = datetime.strptime(
             date_val + " " + start_time_str, "%Y%m%d %H%M%S"
-        ).isoformat()
+        ).strftime("%Y-%m-%d %H:%M:%S")
 
         status_code = self._get_xml_str(traffic_xml, "code")
         if status_code != "01" and status_code != "02":
@@ -155,10 +167,14 @@ class ShopperTrakApiClient:
             ) from None
 
         if error is not None and error.text is not None:
+            # E104 is used when the given site ID matches multiple sites
+            if error.text == "E104":
+                self.logger.warning("E104: site ID has multiple matches")
+                return "E104"
             # E108 is used when ShopperTrak is busy and they recommend trying again
-            if error.text == "E108":
+            elif error.text == "E108":
                 self.logger.info("E108: ShopperTrak is busy")
-                return None
+                return "E108"
             else:
                 self.logger.error(f"Error found in XML response: {response_text}")
                 raise ShopperTrakApiClientError(

@@ -5,6 +5,10 @@ class TestHelpers:
     ENV_VARS = {
         "ENVIRONMENT": "test_environment",
         "AWS_REGION": "test_aws_region",
+        "REDSHIFT_DB_NAME": "test_redshift_name",
+        "REDSHIFT_DB_HOST": "test_redshift_host",
+        "REDSHIFT_DB_USER": "test_redshift_user",
+        "REDSHIFT_DB_PASSWORD": "test_redshift_password",
         "SHOPPERTRAK_API_BASE_URL": "https://test_shoppertrak_url/",
         "MAX_RETRIES": "3",
         "S3_BUCKET": "test_s3_bucket",
