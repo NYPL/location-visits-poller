@@ -27,6 +27,11 @@ class PipelineController:
 
     def __init__(self):
         self.logger = create_log("pipeline_controller")
+        self.shoppertrak_api_client = ShopperTrakApiClient(
+            os.environ["SHOPPERTRAK_USERNAME"],
+            os.environ["SHOPPERTRAK_PASSWORD"],
+            dict(),
+        )
         self.redshift_client = RedshiftClient(
             os.environ["REDSHIFT_DB_HOST"],
             os.environ["REDSHIFT_DB_NAME"],
@@ -34,7 +39,6 @@ class PipelineController:
             os.environ["REDSHIFT_DB_PASSWORD"],
         )
         self.avro_encoder = AvroEncoder(os.environ["LOCATION_VISITS_SCHEMA_URL"])
-        self.shoppertrak_api_client = None
 
         self.yesterday = datetime.now(pytz.timezone("US/Eastern")).date() - timedelta(
             days=1
@@ -61,12 +65,7 @@ class PipelineController:
     def run(self):
         """Main method for the class -- runs the pipeline"""
         self.logger.info("Getting regular branch hours from Redshift")
-        location_hours_dict = self.get_location_hours_dict()
-        self.shoppertrak_api_client = ShopperTrakApiClient(
-            os.environ["SHOPPERTRAK_USERNAME"],
-            os.environ["SHOPPERTRAK_PASSWORD"],
-            location_hours_dict,
-        )
+        self.shoppertrak_api_client.location_hours_dict = self.get_location_hours_dict()
 
         all_sites_start_date = self._get_poll_date(0) + timedelta(days=1)
         all_sites_end_date = (

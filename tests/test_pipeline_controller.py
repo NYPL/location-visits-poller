@@ -112,9 +112,6 @@ class TestPipelineController:
         mocker.patch("lib.pipeline_controller.KinesisClient")
         mocker.patch("lib.pipeline_controller.RedshiftClient")
         mocker.patch("lib.pipeline_controller.S3Client")
-        mock_shoppertrak_client = mocker.patch(
-            "lib.pipeline_controller.ShopperTrakApiClient"
-        )
         mocked_location_hours_method = mocker.patch(
             "lib.pipeline_controller.PipelineController.get_location_hours_dict",
             return_value = _TEST_LOCATION_HOURS_DICT
@@ -130,15 +127,14 @@ class TestPipelineController:
         test_instance.s3_client.fetch_cache.return_value = {
             "last_poll_date": "2023-12-29"
         }
-        assert test_instance.shoppertrak_api_client is None
+        assert test_instance.shoppertrak_api_client.location_hours_dict == dict()
 
         test_instance.run()
 
         mocked_location_hours_method.assert_called_once()
-        mock_shoppertrak_client.assert_called_once_with(
-            "test_shoppertrak_username",
-            "test_shoppertrak_password",
-            _TEST_LOCATION_HOURS_DICT,
+        assert (
+            test_instance.shoppertrak_api_client.location_hours_dict
+            == _TEST_LOCATION_HOURS_DICT
         )
         mocked_all_sites_method.assert_called_once_with(date(2023, 12, 31), 0)
         test_instance.s3_client.close.assert_called_once()
