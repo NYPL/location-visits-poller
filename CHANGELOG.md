@@ -1,4 +1,4 @@
-## 2024-04-18 -- v1.0.0
+## 2024-04-24 -- v1.0.0
 ### Added
 - Perform recovery queries on past thirty days of missing data
 

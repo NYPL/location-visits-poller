@@ -50,6 +50,7 @@ class PipelineController:
         self.redshift_hours_table = "location_hours" + redshift_suffix
         self.redshift_branch_codes_table = "branch_codes_map" + redshift_suffix
 
+        self.ignore_update = os.environ.get("IGNORE_UPDATE", False) == "True"
         self.ignore_cache = os.environ.get("IGNORE_CACHE", False) == "True"
         if not self.ignore_cache:
             self.s3_client = S3Client(
@@ -208,15 +209,20 @@ class PipelineController:
                     )
 
         # Mark old rows for successfully recovered data as stale
-        update_query = build_redshift_update_query(
-            self.redshift_visits_table, ",".join(stale_ids)
-        )
-        self.redshift_client.execute_transaction([(update_query, None)])
+        if stale_ids:
+            self.logger.info(f"Updating {len(stale_ids)} stale records")
+            update_query = build_redshift_update_query(
+                self.redshift_visits_table, ",".join(stale_ids)
+            )
+            if not self.ignore_update:
+                self.redshift_client.execute_transaction([(update_query, None)])
 
         if results:
             encoded_records = self.avro_encoder.encode_batch(results)
             if not self.ignore_kinesis:
                 self.kinesis_client.send_records(encoded_records)
+        else:
+            self.logger.info("No recovered data found")
 
     def _get_poll_date(self, batch_num):
         """Retrieves the last poll date from the S3 cache or the config"""
