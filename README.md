@@ -50,3 +50,4 @@ Every variable not marked as optional below is required for the poller to run. T
 | `LAST_END_DATE` (optional) | The most recent date to query for. If this is left blank, it will be yesterday. |
 | `IGNORE_CACHE` (optional) | Whether fetching and setting the state from S3 should *not* be done. If this is `True`, the `LAST_POLL_DATE` will be used for the initial state. |
 | `IGNORE_KINESIS` (optional) | Whether sending the encoded records to Kinesis should *not* be done |
+| `IGNORE_UPDATE` (optional) | Whether marking old records as stale in Redshift should *not* be done |
