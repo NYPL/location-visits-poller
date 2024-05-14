@@ -1,3 +1,7 @@
+## 2024-05-14 -- v1.0.1
+### Fixed
+- Do not throw an error if the ShopperTrak API rate limit is hit
+
 ## 2024-04-24 -- v1.0.0
 ### Added
 - Perform recovery queries on past thirty days of missing data

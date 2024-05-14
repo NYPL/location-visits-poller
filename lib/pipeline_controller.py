@@ -1,5 +1,6 @@
 import os
 import pytz
+import xml.etree.ElementTree as ET
 
 from datetime import datetime, timedelta
 from helpers.query_helper import (
@@ -116,10 +117,17 @@ class PipelineController:
             all_sites_xml_root = self.shoppertrak_api_client.query(
                 ALL_SITES_ENDPOINT, poll_date
             )
+            if type(all_sites_xml_root) != ET.Element:
+                self.logger.error(
+                    "Error querying ShopperTrak API for all sites visits data"
+                )
+                raise PipelineControllerError(
+                    "Error querying ShopperTrak API for all sites visits data"
+                ) from None
+
             results = self.shoppertrak_api_client.parse_response(
                 all_sites_xml_root, poll_date
             )
-
             encoded_records = self.avro_encoder.encode_batch(results)
             if not self.ignore_kinesis:
                 self.kinesis_client.send_records(encoded_records)
@@ -173,7 +181,13 @@ class PipelineController:
             site_xml_root = self.shoppertrak_api_client.query(
                 SINGLE_SITE_ENDPOINT + row[0], row[1]
             )
-            if site_xml_root:
+            # If multiple sites match the same site ID (E104), continue to the next site
+            # ID. If the API limit has been reached (E107), stop.
+            if site_xml_root == "E104":
+                continue
+            elif site_xml_root == "E107":
+                break
+            else:
                 site_results = self.shoppertrak_api_client.parse_response(
                     site_xml_root, row[1], is_recovery_mode=True
                 )
@@ -233,3 +247,8 @@ class PipelineController:
         else:
             poll_str = self.s3_client.fetch_cache()["last_poll_date"]
             return datetime.strptime(poll_str, "%Y-%m-%d").date()
+
+
+class PipelineControllerError(Exception):
+    def __init__(self, message=None):
+        self.message = message
