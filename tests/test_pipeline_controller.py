@@ -1,9 +1,10 @@
 import logging
 import pytest
+import xml.etree.ElementTree as ET
 
 from datetime import date, datetime, time
 from helpers.query_helper import REDSHIFT_DROP_QUERY, REDSHIFT_RECOVERABLE_QUERY
-from lib.pipeline_controller import PipelineController
+from lib.pipeline_controller import PipelineController, PipelineControllerError
 from tests.test_helpers import TestHelpers
 
 
@@ -21,7 +22,7 @@ _TEST_RECOVERABLE_SITE_DATES = [
     ("aa", date(2023, 12, 2)),
 ]
 _TEST_ENCODED_RECORDS = [b"encoded1", b"encoded2", b"encoded3"]
-
+_TEST_XML_ROOT = ET.fromstring('<?xml version="1.0"?><element></element>')
 
 def _build_test_api_data(increment_date_str, is_all_healthy_data):
     return [
@@ -165,13 +166,12 @@ class TestPipelineController:
         self, test_instance, mock_logger, mocker
     ):
         TEST_API_DATA = _build_test_api_data("2023-12-31", False)
-        mock_xml_root = mocker.MagicMock()
 
         test_instance.s3_client.fetch_cache.side_effect = [
             {"last_poll_date": "2023-12-30"},
             {"last_poll_date": "2023-12-31"},
         ]
-        test_instance.shoppertrak_api_client.query.return_value = mock_xml_root
+        test_instance.shoppertrak_api_client.query.return_value = _TEST_XML_ROOT
         test_instance.shoppertrak_api_client.parse_response.return_value = TEST_API_DATA
         test_instance.avro_encoder.encode_batch.return_value = _TEST_ENCODED_RECORDS
 
@@ -182,7 +182,7 @@ class TestPipelineController:
             "allsites", date(2023, 12, 31)
         )
         test_instance.shoppertrak_api_client.parse_response.assert_called_once_with(
-            mock_xml_root, date(2023, 12, 31)
+            _TEST_XML_ROOT, date(2023, 12, 31)
         )
         test_instance.avro_encoder.encode_batch.assert_called_once_with(TEST_API_DATA)
         test_instance.kinesis_client.send_records.assert_called_once_with(
@@ -199,6 +199,7 @@ class TestPipelineController:
             {"last_poll_date": "2023-12-30"},
             {"last_poll_date": "2023-12-31"},
         ]
+        test_instance.shoppertrak_api_client.query.return_value = _TEST_XML_ROOT
 
         test_instance.process_all_sites_data(date(2023, 12, 31), 0)
 
@@ -217,6 +218,23 @@ class TestPipelineController:
                 mocker.call({"last_poll_date": "2023-12-31"}),
             ]
         )
+    
+    def test_process_all_sites_error(self, test_instance, mock_logger, mocker):
+        test_instance.s3_client.fetch_cache.return_value = {
+            "last_poll_date": "2023-12-30"}
+        test_instance.shoppertrak_api_client.query.return_value = "error"
+
+        with pytest.raises(PipelineControllerError):
+            test_instance.process_all_sites_data(date(2023, 12, 31), 0)
+
+        test_instance.s3_client.fetch_cache.assert_called_once()
+        test_instance.shoppertrak_api_client.query.assert_called_once_with(
+            "allsites", date(2023, 12, 31)
+        )
+        test_instance.shoppertrak_api_client.parse_response.assert_not_called()
+        test_instance.avro_encoder.encode_batch.assert_not_called()
+        test_instance.kinesis_client.send_records.assert_not_called()
+        test_instance.s3_client.set_cache.assert_not_called()
 
     def test_process_broken_orbits(self, test_instance, mock_logger, mocker):
         mocked_create_table_query = mocker.patch(
@@ -262,13 +280,9 @@ class TestPipelineController:
     def test_recover_data(self, test_instance, mock_logger, mocker):
         TEST_API_DATA = _build_test_api_data("2023-12-01", True)
 
-        # Using a mock for the API return value inflates the call count
-        test_instance.shoppertrak_api_client.query.return_value = True
+        test_instance.shoppertrak_api_client.query.return_value = _TEST_XML_ROOT
         test_instance.shoppertrak_api_client.parse_response.side_effect = [
-            TEST_API_DATA[:3],
-            TEST_API_DATA[3:4],
-            TEST_API_DATA[4:],
-            [],
+            TEST_API_DATA[:3], TEST_API_DATA[3:4], TEST_API_DATA[4:], []
         ]
         mocked_process_recovered_data_method = mocker.patch(
             "lib.pipeline_controller.PipelineController._process_recovered_data"
@@ -292,7 +306,14 @@ class TestPipelineController:
                 mocker.call("site/aa", date(2023, 12, 2)),
             ]
         )
-        assert test_instance.shoppertrak_api_client.parse_response.call_count == 4
+        test_instance.shoppertrak_api_client.parse_response.assert_has_calls(
+            [
+                mocker.call(_TEST_XML_ROOT, date(2023, 12, 1), is_recovery_mode=True),
+                mocker.call(_TEST_XML_ROOT, date(2023, 12, 1), is_recovery_mode=True),
+                mocker.call(_TEST_XML_ROOT, date(2023, 12, 1), is_recovery_mode=True),
+                mocker.call(_TEST_XML_ROOT, date(2023, 12, 2), is_recovery_mode=True),
+            ]
+        )
         mocked_process_recovered_data_method.assert_has_calls(
             [
                 mocker.call(TEST_API_DATA[:3], _TEST_KNOWN_DATA_DICT),
@@ -301,6 +322,51 @@ class TestPipelineController:
                 mocker.call([], _TEST_KNOWN_DATA_DICT),
             ]
         )
+
+    def test_recover_data_duplicate_sites(self, test_instance, mock_logger, mocker):
+        test_instance.shoppertrak_api_client.query.side_effect = [
+            _TEST_XML_ROOT, "E104", _TEST_XML_ROOT]
+        mocked_process_recovered_data_method = mocker.patch(
+            "lib.pipeline_controller.PipelineController._process_recovered_data"
+        )
+
+        test_instance._recover_data(
+            [
+                ("aa", date(2023, 12, 1)),
+                ("bb", date(2023, 12, 1)),
+                ("aa", date(2023, 12, 2)),
+            ],
+            _TEST_KNOWN_DATA_DICT,
+        )
+
+        test_instance.shoppertrak_api_client.parse_response.assert_has_calls(
+            [
+               mocker.call(_TEST_XML_ROOT, date(2023, 12, 1), is_recovery_mode=True),
+               mocker.call(_TEST_XML_ROOT, date(2023, 12, 2), is_recovery_mode=True),
+            ]
+        )
+        assert mocked_process_recovered_data_method.call_count == 2
+    
+    def test_recover_data_api_limit(self, test_instance, mock_logger, mocker):
+        test_instance.shoppertrak_api_client.query.side_effect = [
+            _TEST_XML_ROOT, "E107"]
+        mocked_process_recovered_data_method = mocker.patch(
+            "lib.pipeline_controller.PipelineController._process_recovered_data"
+        )
+
+        test_instance._recover_data(
+            [
+                ("aa", date(2023, 12, 1)),
+                ("bb", date(2023, 12, 2)),
+                ("aa", date(2023, 12, 2)),
+            ],
+            _TEST_KNOWN_DATA_DICT,
+        )
+
+        test_instance.shoppertrak_api_client.parse_response.assert_called_once_with(
+            _TEST_XML_ROOT, date(2023, 12, 1), is_recovery_mode=True
+        )
+        mocked_process_recovered_data_method.assert_called_once()
 
     def test_process_recovered_data(self, test_instance, mocker, caplog):
         mocked_update_query = mocker.patch(

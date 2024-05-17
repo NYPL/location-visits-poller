@@ -142,8 +142,21 @@ class TestPipelineController:
             "lib.ShopperTrakApiClient._check_response", return_value="E104"
         )
 
-        assert test_instance.query("test_endpoint", date(2023, 12, 31)) is None
+        assert test_instance.query("test_endpoint", date(2023, 12, 31)) == "E104"
         mocked_check_response_method.assert_called_once_with("Error 104")
+
+    def test_query_api_limit(self, test_instance, requests_mock, mocker):
+        requests_mock.get(
+            "https://test_shoppertrak_url/test_endpoint"
+            "?date=20231231&increment=15&total_property=N",
+            text="Error 107",
+        )
+        mocked_check_response_method = mocker.patch(
+            "lib.ShopperTrakApiClient._check_response", return_value="E107"
+        )
+
+        assert test_instance.query("test_endpoint", date(2023, 12, 31)) == "E107"
+        mocked_check_response_method.assert_called_once_with("Error 107")
 
     def test_query_retry_success(self, test_instance, requests_mock, mocker):
         mock_sleep = mocker.patch("time.sleep")
@@ -190,6 +203,7 @@ class TestPipelineController:
         CHECKED_RESPONSE = test_instance._check_response(_TEST_API_RESPONSE)
         assert CHECKED_RESPONSE is not None
         assert CHECKED_RESPONSE != "E104"
+        assert CHECKED_RESPONSE != "E107"
         assert CHECKED_RESPONSE != "E108"
 
     def test_check_response_duplicate_site(self, test_instance):
@@ -197,6 +211,13 @@ class TestPipelineController:
             '<?xml version="1.0" ?><message><error>E104</error><description>The '
             'Customer Store ID supplied has multiple matches.</description></message>'
         ) == "E104"
+    
+    def test_check_response_api_limit(self, test_instance):
+        assert test_instance._check_response(
+            '<?xml version="1.0" ?><message><error>E107</error><description>Customer '
+            'has exceeded the maximum number of requests allowed in a 24 hour period.'
+            '</description></message>'
+        ) == "E107"
 
     def test_check_response_busy(self, test_instance):
         assert test_instance._check_response(

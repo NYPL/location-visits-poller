@@ -49,9 +49,7 @@ class ShopperTrakApiClient:
             ) from None
 
         response_root = self._check_response(response.text)
-        if response_root == "E104":
-            return None
-        elif response_root == "E108":
+        if response_root == "E108":
             if query_count < self.max_retries:
                 self.logger.info("Waiting 5 minutes and trying again")
                 time.sleep(300)
@@ -210,6 +208,10 @@ class ShopperTrakApiClient:
             if error.text == "E104":
                 self.logger.warning("E104: site ID has multiple matches")
                 return "E104"
+            # E107 is used when the daily API limit has been exceeded
+            elif error.text == "E107":
+                self.logger.info("E107: API limit exceeded")
+                return "E107"
             # E108 is used when ShopperTrak is busy and they recommend trying again
             elif error.text == "E108":
                 self.logger.info("E108: ShopperTrak is busy")
