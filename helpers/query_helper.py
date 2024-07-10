@@ -1,8 +1,23 @@
 _REDSHIFT_HOURS_QUERY = """
-    SELECT sierra_code, weekday, regular_open, regular_close
-    FROM {hours_table} LEFT JOIN {codes_table}
+    SELECT sierra_code, {hours_table}.weekday, regular_open, regular_close
+    FROM {hours_table}
+    LEFT JOIN {codes_table}
         ON {hours_table}.drupal_location_id = {codes_table}.drupal_code
-    WHERE date_of_change IS NULL;"""
+    INNER JOIN
+    (
+        SELECT drupal_location_id, weekday, MAX(date_of_change) AS last_changed_date
+        FROM {hours_table}
+        GROUP BY drupal_location_id, weekday
+    ) current_hours
+    ON {hours_table}.drupal_location_id = current_hours.drupal_location_id
+        AND {hours_table}.weekday = current_hours.weekday
+        AND (
+            {hours_table}.date_of_change = current_hours.last_changed_date
+            OR (
+                {hours_table}.date_of_change IS NULL
+                AND current_hours.last_changed_date IS NULL
+            )
+        );"""
 
 _REDSHIFT_CREATE_TABLE_QUERY = """
     CREATE TEMPORARY TABLE #recoverable_site_dates AS
