@@ -1,3 +1,7 @@
+## 2024-07-10 -- v1.0.2
+### Fixed
+- Fix location hours query to retrieve each location's current hours rather than its first hours
+
 ## 2024-05-14 -- v1.0.1
 ### Fixed
 - Do not throw an error if the ShopperTrak API rate limit is hit
