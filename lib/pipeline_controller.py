@@ -16,7 +16,7 @@ from lib import (
     ALL_SITES_ENDPOINT,
     SINGLE_SITE_ENDPOINT,
 )
-from nypl_py_utils.classes.avro_encoder import AvroEncoder
+from nypl_py_utils.classes.avro_client import AvroEncoder
 from nypl_py_utils.classes.kinesis_client import KinesisClient
 from nypl_py_utils.classes.redshift_client import RedshiftClient
 from nypl_py_utils.classes.s3_client import S3Client
