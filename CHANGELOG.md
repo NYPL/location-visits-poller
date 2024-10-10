@@ -1,3 +1,7 @@
+## 2024-10-10 -- v1.0.3
+### Fixed
+- Retry when server is down (new ShopperTrak error code "E000")
+
 ## 2024-07-10 -- v1.0.2
 ### Fixed
 - Fix location hours query to retrieve each location's current hours rather than its first hours

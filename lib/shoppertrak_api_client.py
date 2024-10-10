@@ -49,7 +49,7 @@ class ShopperTrakApiClient:
             ) from None
 
         response_root = self._check_response(response.text)
-        if response_root == "E108":
+        if response_root == "E108" or response_root == "E000":
             if query_count < self.max_retries:
                 self.logger.info("Waiting 5 minutes and trying again")
                 time.sleep(300)
@@ -216,6 +216,10 @@ class ShopperTrakApiClient:
             elif error.text == "E108":
                 self.logger.info("E108: ShopperTrak is busy")
                 return "E108"
+            # E000 is used when ShopperTrak is down and they recommend trying again
+            elif error.text == "E000":
+                self.logger.info("E000: ShopperTrak is down")
+                return "E000"
             else:
                 self.logger.error(f"Error found in XML response: {response_text}")
                 raise ShopperTrakApiClientError(
