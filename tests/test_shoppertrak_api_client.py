@@ -169,7 +169,7 @@ class TestPipelineController:
         xml_root = mocker.MagicMock()
         mocked_check_response_method = mocker.patch(
             "lib.ShopperTrakApiClient._check_response",
-            side_effect=["E108", "E108", xml_root],
+            side_effect=["E000", "E108", xml_root],
         )
 
         assert test_instance.query("test_endpoint", date(2023, 12, 31)) == xml_root
@@ -190,7 +190,7 @@ class TestPipelineController:
         )
         mocked_check_response_method = mocker.patch(
             "lib.ShopperTrakApiClient._check_response",
-            side_effect=["E108", "E108", "E108"],
+            side_effect=["E000", "E108", "E108"],
         )
 
         with pytest.raises(ShopperTrakApiClientError):
@@ -205,6 +205,7 @@ class TestPipelineController:
         assert CHECKED_RESPONSE != "E104"
         assert CHECKED_RESPONSE != "E107"
         assert CHECKED_RESPONSE != "E108"
+        assert CHECKED_RESPONSE != "E000"
 
     def test_check_response_duplicate_site(self, test_instance):
         assert test_instance._check_response(
@@ -224,6 +225,12 @@ class TestPipelineController:
             '<?xml version="1.0" ?><message><error>E108</error>'
             '<description>Server is busy</description></message>'
         ) == "E108"
+    
+    def test_check_response_down(self, test_instance):
+        assert test_instance._check_response(
+            '<?xml version="1.0" ?><message><error>E000</error>'
+            '<description>Server is down</description></message>'
+        ) == "E000"
 
     def test_check_response_unparsable(self, test_instance):
         with pytest.raises(ShopperTrakApiClientError):
