@@ -1,3 +1,7 @@
+## 2024-11-14 -- v1.0.4
+### Fixed
+- When site ID is not found (error code "E101"), skip it without throwing an error
+
 ## 2024-10-10 -- v1.0.3
 ### Fixed
 - Retry when server is down (new ShopperTrak error code "E000")

@@ -204,8 +204,16 @@ class ShopperTrakApiClient:
             ) from None
 
         if error is not None and error.text is not None:
+            # E000 is used when ShopperTrak is down and they recommend trying again
+            if error.text == "E000":
+                self.logger.info("E000: ShopperTrak is down")
+                return "E000"
+            # E101 is used when the given site ID is not recognized
+            elif error.text == "E101":
+                self.logger.warning("E101: site ID not found")
+                return "E101"
             # E104 is used when the given site ID matches multiple sites
-            if error.text == "E104":
+            elif error.text == "E104":
                 self.logger.warning("E104: site ID has multiple matches")
                 return "E104"
             # E107 is used when the daily API limit has been exceeded
@@ -216,10 +224,6 @@ class ShopperTrakApiClient:
             elif error.text == "E108":
                 self.logger.info("E108: ShopperTrak is busy")
                 return "E108"
-            # E000 is used when ShopperTrak is down and they recommend trying again
-            elif error.text == "E000":
-                self.logger.info("E000: ShopperTrak is down")
-                return "E000"
             else:
                 self.logger.error(f"Error found in XML response: {response_text}")
                 raise ShopperTrakApiClientError(

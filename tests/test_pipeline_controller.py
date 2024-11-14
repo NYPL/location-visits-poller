@@ -323,9 +323,9 @@ class TestPipelineController:
             ]
         )
 
-    def test_recover_data_duplicate_sites(self, test_instance, mock_logger, mocker):
+    def test_recover_data_bad_sites(self, test_instance, mock_logger, mocker):
         test_instance.shoppertrak_api_client.query.side_effect = [
-            _TEST_XML_ROOT, "E104", _TEST_XML_ROOT]
+            _TEST_XML_ROOT, "E104", "E101", _TEST_XML_ROOT]
         mocked_process_recovered_data_method = mocker.patch(
             "lib.pipeline_controller.PipelineController._process_recovered_data"
         )
@@ -334,6 +334,7 @@ class TestPipelineController:
             [
                 ("aa", date(2023, 12, 1)),
                 ("bb", date(2023, 12, 1)),
+                ("cc", date(2023, 12, 1)),
                 ("aa", date(2023, 12, 2)),
             ],
             _TEST_KNOWN_DATA_DICT,

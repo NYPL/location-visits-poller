@@ -181,9 +181,10 @@ class PipelineController:
             site_xml_root = self.shoppertrak_api_client.query(
                 SINGLE_SITE_ENDPOINT + row[0], row[1]
             )
-            # If multiple sites match the same site ID (E104), continue to the next site
-            # ID. If the API limit has been reached (E107), stop.
-            if site_xml_root == "E104":
+            # If the site ID can't be found (E101) or multiple sites match the same site
+            # ID (E104), continue to the next site. If the API limit has been reached
+            # (E107), stop.
+            if site_xml_root == "E101" or site_xml_root == "E104":
                 continue
             elif site_xml_root == "E107":
                 break
