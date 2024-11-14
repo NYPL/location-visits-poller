@@ -132,6 +132,19 @@ class TestPipelineController:
         with pytest.raises(ShopperTrakApiClientError):
             test_instance.query("test_endpoint", date(2023, 12, 31))
 
+    def test_query_unrecognized_site(self, test_instance, requests_mock, mocker):
+        requests_mock.get(
+            "https://test_shoppertrak_url/test_endpoint"
+            "?date=20231231&increment=15&total_property=N",
+            text="Error 101",
+        )
+        mocked_check_response_method = mocker.patch(
+            "lib.ShopperTrakApiClient._check_response", return_value="E101"
+        )
+
+        assert test_instance.query("test_endpoint", date(2023, 12, 31)) == "E101"
+        mocked_check_response_method.assert_called_once_with("Error 101")
+
     def test_query_duplicate_sites(self, test_instance, requests_mock, mocker):
         requests_mock.get(
             "https://test_shoppertrak_url/test_endpoint"
@@ -206,6 +219,13 @@ class TestPipelineController:
         assert CHECKED_RESPONSE != "E107"
         assert CHECKED_RESPONSE != "E108"
         assert CHECKED_RESPONSE != "E000"
+
+    def test_check_response_unrecognized_site(self, test_instance):
+        assert test_instance._check_response(
+            '<?xml version="1.0" ?><message><error>E101</error><description>'
+            'The Customer Store ID supplied is not recognized by the system.'
+            '</description></message>'
+        ) == "E101"
 
     def test_check_response_duplicate_site(self, test_instance):
         assert test_instance._check_response(
