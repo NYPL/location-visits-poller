@@ -1,3 +1,7 @@
+## 2024-11-21 -- v1.0.5
+### Fixed
+- Catch non-fatal XML errors and continue requesting. Only throw an error and stop when the API limit has been exceeded, when the request itself has failed, or when the ShopperTrak server cannot be reached even after retrying.
+
 ## 2024-11-14 -- v1.0.4
 ### Fixed
 - When site ID is not found (error code "E101"), skip it without throwing an error

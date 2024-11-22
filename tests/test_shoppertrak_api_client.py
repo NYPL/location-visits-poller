@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 
 from copy import deepcopy
 from datetime import date, time
-from lib import ShopperTrakApiClient, ShopperTrakApiClientError
+from lib import APIStatus, ShopperTrakApiClient, ShopperTrakApiClientError
 from requests.exceptions import ConnectTimeout
 from tests.test_helpers import TestHelpers
 
@@ -118,58 +118,38 @@ class TestPipelineController:
 
         xml_root = mocker.MagicMock()
         mocked_check_response_method = mocker.patch(
-            "lib.ShopperTrakApiClient._check_response", return_value=xml_root
+            "lib.ShopperTrakApiClient._check_response",
+            return_value=(APIStatus.SUCCESS, xml_root),
         )
 
         assert test_instance.query("test_endpoint", date(2023, 12, 31)) == xml_root
         mocked_check_response_method.assert_called_once_with(_TEST_API_RESPONSE)
 
-    def test_query_request_exception(self, test_instance, requests_mock):
+    def test_query_request_exception(self, test_instance, requests_mock, mocker, caplog):
         requests_mock.get(
             "https://test_shoppertrak_url/test_endpoint", exc=ConnectTimeout
         )
+        mocked_check_response_method = mocker.patch(
+            "lib.ShopperTrakApiClient._check_response")
 
         with pytest.raises(ShopperTrakApiClientError):
             test_instance.query("test_endpoint", date(2023, 12, 31))
-
-    def test_query_unrecognized_site(self, test_instance, requests_mock, mocker):
+        
+        assert ("Failed to retrieve response from "
+                "https://test_shoppertrak_url/test_endpoint") in caplog.text
+        mocked_check_response_method.assert_not_called()
+    
+    def test_query_non_fatal_error(self, test_instance, requests_mock, mocker):
         requests_mock.get(
             "https://test_shoppertrak_url/test_endpoint"
             "?date=20231231&increment=15&total_property=N",
-            text="Error 101",
+            text="error",
         )
-        mocked_check_response_method = mocker.patch(
-            "lib.ShopperTrakApiClient._check_response", return_value="E101"
-        )
+        mocker.patch("lib.ShopperTrakApiClient._check_response",
+                     return_value=(APIStatus.ERROR, None))
 
-        assert test_instance.query("test_endpoint", date(2023, 12, 31)) == "E101"
-        mocked_check_response_method.assert_called_once_with("Error 101")
-
-    def test_query_duplicate_sites(self, test_instance, requests_mock, mocker):
-        requests_mock.get(
-            "https://test_shoppertrak_url/test_endpoint"
-            "?date=20231231&increment=15&total_property=N",
-            text="Error 104",
-        )
-        mocked_check_response_method = mocker.patch(
-            "lib.ShopperTrakApiClient._check_response", return_value="E104"
-        )
-
-        assert test_instance.query("test_endpoint", date(2023, 12, 31)) == "E104"
-        mocked_check_response_method.assert_called_once_with("Error 104")
-
-    def test_query_api_limit(self, test_instance, requests_mock, mocker):
-        requests_mock.get(
-            "https://test_shoppertrak_url/test_endpoint"
-            "?date=20231231&increment=15&total_property=N",
-            text="Error 107",
-        )
-        mocked_check_response_method = mocker.patch(
-            "lib.ShopperTrakApiClient._check_response", return_value="E107"
-        )
-
-        assert test_instance.query("test_endpoint", date(2023, 12, 31)) == "E107"
-        mocked_check_response_method.assert_called_once_with("Error 107")
+        assert test_instance.query(
+            "test_endpoint", date(2023, 12, 31)) == APIStatus.ERROR
 
     def test_query_retry_success(self, test_instance, requests_mock, mocker):
         mock_sleep = mocker.patch("time.sleep")
@@ -182,7 +162,8 @@ class TestPipelineController:
         xml_root = mocker.MagicMock()
         mocked_check_response_method = mocker.patch(
             "lib.ShopperTrakApiClient._check_response",
-            side_effect=["E000", "E108", xml_root],
+            side_effect=[(APIStatus.RETRY, None), (APIStatus.RETRY, None),
+                         (APIStatus.SUCCESS, xml_root)],
         )
 
         assert test_instance.query("test_endpoint", date(2023, 12, 31)) == xml_root
@@ -194,7 +175,7 @@ class TestPipelineController:
         )
         assert mock_sleep.call_count == 2
 
-    def test_query_retry_fail(self, test_instance, requests_mock, mocker):
+    def test_query_retry_fail(self, test_instance, requests_mock, mocker, caplog):
         mock_sleep = mocker.patch("time.sleep")
         requests_mock.get(
             "https://test_shoppertrak_url/test_endpoint"
@@ -203,71 +184,91 @@ class TestPipelineController:
         )
         mocked_check_response_method = mocker.patch(
             "lib.ShopperTrakApiClient._check_response",
-            side_effect=["E000", "E108", "E108"],
+            return_value=(APIStatus.RETRY, None),
         )
 
         with pytest.raises(ShopperTrakApiClientError):
             test_instance.query("test_endpoint", date(2023, 12, 31))
 
+        assert "Hit retry limit: sent 3 queries with no response" in caplog.text
         assert mocked_check_response_method.call_count == 3
         assert mock_sleep.call_count == 2
 
-    def test_check_response(self, test_instance):
-        CHECKED_RESPONSE = test_instance._check_response(_TEST_API_RESPONSE)
-        assert CHECKED_RESPONSE is not None
-        assert CHECKED_RESPONSE != "E104"
-        assert CHECKED_RESPONSE != "E107"
-        assert CHECKED_RESPONSE != "E108"
-        assert CHECKED_RESPONSE != "E000"
+    def test_query_bad_status(self, test_instance, requests_mock, mocker, caplog):
+        requests_mock.get(
+            "https://test_shoppertrak_url/test_endpoint"
+            "?date=20231231&increment=15&total_property=N",
+            text="",
+        )
+        mocker.patch("lib.ShopperTrakApiClient._check_response",
+                     return_value=(None, None))
 
-    def test_check_response_unrecognized_site(self, test_instance):
-        assert test_instance._check_response(
-            '<?xml version="1.0" ?><message><error>E101</error><description>'
-            'The Customer Store ID supplied is not recognized by the system.'
-            '</description></message>'
-        ) == "E101"
-
-    def test_check_response_duplicate_site(self, test_instance):
-        assert test_instance._check_response(
-            '<?xml version="1.0" ?><message><error>E104</error><description>The '
-            'Customer Store ID supplied has multiple matches.</description></message>'
-        ) == "E104"
-    
-    def test_check_response_api_limit(self, test_instance):
-        assert test_instance._check_response(
-            '<?xml version="1.0" ?><message><error>E107</error><description>Customer '
-            'has exceeded the maximum number of requests allowed in a 24 hour period.'
-            '</description></message>'
-        ) == "E107"
-
-    def test_check_response_busy(self, test_instance):
-        assert test_instance._check_response(
-            '<?xml version="1.0" ?><message><error>E108</error>'
-            '<description>Server is busy</description></message>'
-        ) == "E108"
-    
-    def test_check_response_down(self, test_instance):
-        assert test_instance._check_response(
-            '<?xml version="1.0" ?><message><error>E000</error>'
-            '<description>Server is down</description></message>'
-        ) == "E000"
-
-    def test_check_response_unparsable(self, test_instance):
         with pytest.raises(ShopperTrakApiClientError):
-            test_instance._check_response("bad xml")
+            test_instance.query("test_endpoint", date(2023, 12, 31))
+        
+        assert "Unknown API status: None" in caplog.text
 
-    def test_check_response_xml_error(self, test_instance):
+    def test_check_response(self, test_instance):
+        status, root = test_instance._check_response(_TEST_API_RESPONSE)
+        assert status == APIStatus.SUCCESS
+        assert type(root) == ET.Element
+
+    def test_check_response_unparsable(self, test_instance, caplog):
+        with caplog.at_level(logging.ERROR):
+            status, root = test_instance._check_response("bad xml")
+        
+        assert "Could not parse XML response bad xml" in caplog.text
+        assert status == APIStatus.ERROR
+        assert root is None
+
+    def test_check_response_api_limit(self, test_instance, caplog):
         with pytest.raises(ShopperTrakApiClientError):
             test_instance._check_response(
+                '<?xml version="1.0" ?><message><error>E107</error><description>'
+                'Customer has exceeded the maximum number of requests allowed in a 24 '
+                'hour period.</description></message>')
+        assert "API limit exceeded" in caplog.text
+
+    def test_check_response_down(self, test_instance, caplog):
+        with caplog.at_level(logging.WARNING):
+            status, root = test_instance._check_response(
+                '<?xml version="1.0" ?><message><error>E000</error>'
+                '<description>Server is down</description></message>')
+
+        assert caplog.text == ""
+        assert status == APIStatus.RETRY
+        assert root is None
+
+    def test_check_response_busy(self, test_instance, caplog):
+        with caplog.at_level(logging.WARNING):
+            status, root = test_instance._check_response(
+                '<?xml version="1.0" ?><message><error>E108</error>'
+                '<description>Server is busy</description></message>')
+
+        assert caplog.text == ""
+        assert status == APIStatus.RETRY
+        assert root is None
+
+    def test_check_response_xml_error(self, test_instance, caplog):
+        with caplog.at_level(logging.ERROR):
+            status, root = test_instance._check_response(
                 '<?xml version="1.0" ?><message><error>E999</error>'
                 '<description>Error!</description></message>')
 
-    def test_check_response_no_traffic(self, test_instance):
-        with pytest.raises(ShopperTrakApiClientError):
-            test_instance._check_response(
+        assert "Error found in XML response:" in caplog.text
+        assert status == APIStatus.ERROR
+        assert root is None
+
+    def test_check_response_no_traffic(self, test_instance, caplog):
+        with caplog.at_level(logging.ERROR):
+            status, root = test_instance._check_response(
                 '<?xml version="1.0" ?><sites><site siteID="site1">'
                 '<date dateValue="20231231"><entrance name="EP 01">'
                 '</entrance></date></site></sites>')
+        
+        assert "No traffic found in XML response:" in caplog.text
+        assert status == APIStatus.ERROR
+        assert root is None
 
     def test_parse_response(self, test_instance, caplog):
         with caplog.at_level(logging.WARNING):

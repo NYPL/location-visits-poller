@@ -5,6 +5,7 @@ import time
 import xml.etree.ElementTree as ET
 
 from datetime import datetime
+from enum import Enum
 from nypl_py_utils.functions.log_helper import create_log
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import RequestException
@@ -12,6 +13,15 @@ from requests.exceptions import RequestException
 ALL_SITES_ENDPOINT = "allsites"
 SINGLE_SITE_ENDPOINT = "site/"
 _WEEKDAY_MAP = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
+
+
+class APIStatus(Enum):
+    SUCCESS = 1  # The API successfully retrieved the data
+    RETRY = 2  # The API is busy or down and should be retried later
+
+    # The API returned a request-specific error. This status indicates that while this
+    # request failed, others with different parameters may still succeed.
+    ERROR = 3
 
 
 class ShopperTrakApiClient:
@@ -27,9 +37,9 @@ class ShopperTrakApiClient:
 
     def query(self, endpoint, query_date, query_count=1):
         """
-        Sends query to ShopperTrak API and returns the result as an XML root if
-        possible. If the API returns that it's busy, this method waits and recursively
-        calls itself.
+        Sends query to ShopperTrak API and either a) returns the result as an XML root
+        if the query was successful, b) returns APIStatus.ERROR if the query failed but
+        others should be attempted, or c) waits and tries again if the API was busy.
         """
         full_url = self.base_url + endpoint
         date_str = query_date.strftime("%Y%m%d")
@@ -48,23 +58,26 @@ class ShopperTrakApiClient:
                 f"Failed to retrieve response from {full_url}: {e}"
             ) from None
 
-        response_root = self._check_response(response.text)
-        if response_root == "E108" or response_root == "E000":
+        response_status, response_root = self._check_response(response.text)
+        if response_status == APIStatus.SUCCESS:
+            return response_root
+        elif response_status == APIStatus.ERROR:
+            return response_status
+        elif response_status == APIStatus.RETRY:
             if query_count < self.max_retries:
                 self.logger.info("Waiting 5 minutes and trying again")
                 time.sleep(300)
                 return self.query(endpoint, query_date, query_count + 1)
             else:
                 self.logger.error(
-                    f"Reached max retries: sent {self.max_retries} queries with no "
-                    f"response"
+                    f"Hit retry limit: sent {self.max_retries} queries with no response"
                 )
                 raise ShopperTrakApiClientError(
-                    f"Reached max retries: sent {self.max_retries} queries with no "
-                    f"response"
+                    f"Hit retry limit: sent {self.max_retries} queries with no response"
                 )
         else:
-            return response_root
+            self.logger.error(f"Unknown API status: {response_status}")
+            raise ShopperTrakApiClientError(f"Unknown API status: {response_status}")
 
     def parse_response(self, xml_root, input_date, is_recovery_mode=False):
         """
@@ -191,51 +204,33 @@ class ShopperTrakApiClient:
 
     def _check_response(self, response_text):
         """
-        If API response is XML, does not contain an error, and contains at least one
-        traffic attribute, returns response as an XML root. Otherwise, throws an error.
+        Checks response for errors. If none are found, returns the XML root. Otherwise,
+        either throws an error or returns an APIStatus where appropriate.
         """
         try:
             root = ET.fromstring(response_text)
             error = root.find("error")
         except ET.ParseError as e:
             self.logger.error(f"Could not parse XML response {response_text}: {e}")
-            raise ShopperTrakApiClientError(
-                f"Could not parse XML response {response_text}: {e}"
-            ) from None
+            return APIStatus.ERROR, None
 
         if error is not None and error.text is not None:
-            # E000 is used when ShopperTrak is down and they recommend trying again
-            if error.text == "E000":
-                self.logger.info("E000: ShopperTrak is down")
-                return "E000"
-            # E101 is used when the given site ID is not recognized
-            elif error.text == "E101":
-                self.logger.warning("E101: site ID not found")
-                return "E101"
-            # E104 is used when the given site ID matches multiple sites
-            elif error.text == "E104":
-                self.logger.warning("E104: site ID has multiple matches")
-                return "E104"
             # E107 is used when the daily API limit has been exceeded
-            elif error.text == "E107":
-                self.logger.info("E107: API limit exceeded")
-                return "E107"
-            # E108 is used when ShopperTrak is busy and they recommend trying again
-            elif error.text == "E108":
-                self.logger.info("E108: ShopperTrak is busy")
-                return "E108"
+            if error.text == "E107":
+                self.logger.error("API limit exceeded")
+                raise ShopperTrakApiClientError(f"API limit exceeded")
+            # E000 is used when ShopperTrak is down and E108 is used when it's busy
+            elif error.text == "E000" or error.text == "E108":
+                self.logger.info("ShopperTrak is unavailable")
+                return APIStatus.RETRY, None
             else:
                 self.logger.error(f"Error found in XML response: {response_text}")
-                raise ShopperTrakApiClientError(
-                    f"Error found in XML response: {response_text}"
-                )
+                return APIStatus.ERROR, None
         elif len(root.findall(".//traffic")) == 0:
             self.logger.error(f"No traffic found in XML response: {response_text}")
-            raise ShopperTrakApiClientError(
-                f"No traffic found in XML response: {response_text}"
-            )
+            return APIStatus.ERROR, None
         else:
-            return root
+            return APIStatus.SUCCESS, root
 
     def _get_xml_str(self, xml, attribute):
         """

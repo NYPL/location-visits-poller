@@ -4,7 +4,8 @@ import xml.etree.ElementTree as ET
 
 from datetime import date, datetime, time
 from helpers.query_helper import REDSHIFT_DROP_QUERY, REDSHIFT_RECOVERABLE_QUERY
-from lib.pipeline_controller import PipelineController, PipelineControllerError
+from lib.pipeline_controller import PipelineController
+from lib.shoppertrak_api_client import APIStatus
 from tests.test_helpers import TestHelpers
 
 
@@ -219,14 +220,15 @@ class TestPipelineController:
             ]
         )
     
-    def test_process_all_sites_error(self, test_instance, mock_logger, mocker):
+    def test_process_all_sites_error(self, test_instance, mock_logger, mocker, caplog):
         test_instance.s3_client.fetch_cache.return_value = {
             "last_poll_date": "2023-12-30"}
-        test_instance.shoppertrak_api_client.query.return_value = "error"
+        test_instance.shoppertrak_api_client.query.return_value = APIStatus.ERROR
 
-        with pytest.raises(PipelineControllerError):
+        with caplog.at_level(logging.WARNING):
             test_instance.process_all_sites_data(date(2023, 12, 31), 0)
 
+        assert "Failed to retrieve all sites visits data" in caplog.text
         test_instance.s3_client.fetch_cache.assert_called_once()
         test_instance.shoppertrak_api_client.query.assert_called_once_with(
             "allsites", date(2023, 12, 31)
@@ -323,23 +325,24 @@ class TestPipelineController:
             ]
         )
 
-    def test_recover_data_bad_sites(self, test_instance, mock_logger, mocker):
+    def test_recover_data_error(self, test_instance, mocker, caplog):
         test_instance.shoppertrak_api_client.query.side_effect = [
-            _TEST_XML_ROOT, "E104", "E101", _TEST_XML_ROOT]
+            _TEST_XML_ROOT, APIStatus.ERROR, _TEST_XML_ROOT]
         mocked_process_recovered_data_method = mocker.patch(
             "lib.pipeline_controller.PipelineController._process_recovered_data"
         )
 
-        test_instance._recover_data(
-            [
-                ("aa", date(2023, 12, 1)),
-                ("bb", date(2023, 12, 1)),
-                ("cc", date(2023, 12, 1)),
-                ("aa", date(2023, 12, 2)),
-            ],
-            _TEST_KNOWN_DATA_DICT,
-        )
+        with caplog.at_level(logging.WARNING):
+            test_instance._recover_data(
+                [
+                    ("aa", date(2023, 12, 1)),
+                    ("bb", date(2023, 12, 1)),
+                    ("aa", date(2023, 12, 2)),
+                ],
+                _TEST_KNOWN_DATA_DICT,
+            )
 
+        assert "Failed to retrieve site visits data for bb" in caplog.text
         test_instance.shoppertrak_api_client.parse_response.assert_has_calls(
             [
                mocker.call(_TEST_XML_ROOT, date(2023, 12, 1), is_recovery_mode=True),
@@ -347,27 +350,6 @@ class TestPipelineController:
             ]
         )
         assert mocked_process_recovered_data_method.call_count == 2
-    
-    def test_recover_data_api_limit(self, test_instance, mock_logger, mocker):
-        test_instance.shoppertrak_api_client.query.side_effect = [
-            _TEST_XML_ROOT, "E107"]
-        mocked_process_recovered_data_method = mocker.patch(
-            "lib.pipeline_controller.PipelineController._process_recovered_data"
-        )
-
-        test_instance._recover_data(
-            [
-                ("aa", date(2023, 12, 1)),
-                ("bb", date(2023, 12, 2)),
-                ("aa", date(2023, 12, 2)),
-            ],
-            _TEST_KNOWN_DATA_DICT,
-        )
-
-        test_instance.shoppertrak_api_client.parse_response.assert_called_once_with(
-            _TEST_XML_ROOT, date(2023, 12, 1), is_recovery_mode=True
-        )
-        mocked_process_recovered_data_method.assert_called_once()
 
     def test_process_recovered_data(self, test_instance, mocker, caplog):
         mocked_update_query = mocker.patch(

@@ -1,6 +1,5 @@
 import os
 import pytz
-import xml.etree.ElementTree as ET
 
 from datetime import datetime, timedelta
 from helpers.query_helper import (
@@ -12,6 +11,7 @@ from helpers.query_helper import (
     REDSHIFT_RECOVERABLE_QUERY,
 )
 from lib import (
+    APIStatus,
     ShopperTrakApiClient,
     ALL_SITES_ENDPOINT,
     SINGLE_SITE_ENDPOINT,
@@ -106,7 +106,10 @@ class PipelineController:
             )
         )
         self.redshift_client.close_connection()
-        return {(row[0], row[1]): (row[2], row[3]) for row in raw_hours}
+        return {
+            (branch_code, weekday): (regular_open, regular_close)
+            for branch_code, weekday, regular_open, regular_close in raw_hours
+        }
 
     def process_all_sites_data(self, end_date, batch_num):
         """Gets visits data from all available sites for the given day(s)"""
@@ -114,19 +117,15 @@ class PipelineController:
         poll_date = last_poll_date + timedelta(days=1)
         if poll_date <= end_date:
             self.logger.info(f"Beginning batch {batch_num+1}: {poll_date.isoformat()}")
-            all_sites_xml_root = self.shoppertrak_api_client.query(
+            all_sites_response = self.shoppertrak_api_client.query(
                 ALL_SITES_ENDPOINT, poll_date
             )
-            if type(all_sites_xml_root) != ET.Element:
-                self.logger.error(
-                    "Error querying ShopperTrak API for all sites visits data"
-                )
-                raise PipelineControllerError(
-                    "Error querying ShopperTrak API for all sites visits data"
-                ) from None
+            if all_sites_response == APIStatus.ERROR:
+                self.logger.error("Failed to retrieve all sites visits data")
+                return
 
             results = self.shoppertrak_api_client.parse_response(
-                all_sites_xml_root, poll_date
+                all_sites_response, poll_date
             )
             encoded_records = self.avro_encoder.encode_batch(results)
             if not self.ignore_kinesis:
@@ -165,8 +164,8 @@ class PipelineController:
         known_data_dict = dict()
         if known_data:
             known_data_dict = {
-                (row[0], row[1], row[2]): (row[3], row[4], row[5], row[6])
-                for row in known_data
+                (site_id, orbit, inc_start): (redshift_id, is_healthy, enters, exits)
+                for site_id, orbit, inc_start, redshift_id, is_healthy, enters, exits in known_data
             }
         self._recover_data(recoverable_site_dates, known_data_dict)
         self.redshift_client.close_connection()
@@ -177,20 +176,15 @@ class PipelineController:
         unhealthy data. Then check to see if the returned data is actually "recovered"
         data, as it may have never been unhealthy to begin with. If so, send to Kinesis.
         """
-        for row in site_dates:
-            site_xml_root = self.shoppertrak_api_client.query(
-                SINGLE_SITE_ENDPOINT + row[0], row[1]
+        for site_id, visits_date in site_dates:
+            site_response = self.shoppertrak_api_client.query(
+                SINGLE_SITE_ENDPOINT + site_id, visits_date
             )
-            # If the site ID can't be found (E101) or multiple sites match the same site
-            # ID (E104), continue to the next site. If the API limit has been reached
-            # (E107), stop.
-            if site_xml_root == "E101" or site_xml_root == "E104":
-                continue
-            elif site_xml_root == "E107":
-                break
+            if site_response == APIStatus.ERROR:
+                self.logger.error(f"Failed to retrieve site visits data for {site_id}")
             else:
                 site_results = self.shoppertrak_api_client.parse_response(
-                    site_xml_root, row[1], is_recovery_mode=True
+                    site_response, visits_date, is_recovery_mode=True
                 )
                 self._process_recovered_data(site_results, known_data_dict)
 
@@ -248,8 +242,3 @@ class PipelineController:
         else:
             poll_str = self.s3_client.fetch_cache()["last_poll_date"]
             return datetime.strptime(poll_str, "%Y-%m-%d").date()
-
-
-class PipelineControllerError(Exception):
-    def __init__(self, message=None):
-        self.message = message
