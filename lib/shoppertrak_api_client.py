@@ -9,6 +9,7 @@ from enum import Enum
 from nypl_py_utils.functions.log_helper import create_log
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import RequestException
+from urllib.parse import quote
 
 ALL_SITES_ENDPOINT = "allsites"
 SINGLE_SITE_ENDPOINT = "site/"
@@ -41,7 +42,7 @@ class ShopperTrakApiClient:
         if the query was successful, b) returns APIStatus.ERROR if the query failed but
         others should be attempted, or c) waits and tries again if the API was busy.
         """
-        full_url = self.base_url + endpoint
+        full_url = self.base_url + quote(endpoint)
         date_str = query_date.strftime("%Y%m%d")
 
         self.logger.info(f"Querying {endpoint} for {date_str} data")

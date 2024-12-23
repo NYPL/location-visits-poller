@@ -104,7 +104,7 @@ class TestPipelineController:
 
     def test_query(self, test_instance, requests_mock, mocker):
         requests_mock.get(
-            "https://test_shoppertrak_url/test_endpoint"
+            "https://test_shoppertrak_url/test%20-%20endpoint%3B%20one"
             "?date=20231231&increment=15&total_property=N",
             text=_TEST_API_RESPONSE,
         )
@@ -115,7 +115,7 @@ class TestPipelineController:
             return_value=(APIStatus.SUCCESS, xml_root),
         )
 
-        assert test_instance.query("test_endpoint", date(2023, 12, 31)) == xml_root
+        assert test_instance.query("test - endpoint; one", date(2023, 12, 31)) == xml_root
         mocked_check_response_method.assert_called_once_with(_TEST_API_RESPONSE)
 
     def test_query_request_exception(self, test_instance, requests_mock, mocker, caplog):
