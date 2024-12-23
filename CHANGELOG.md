@@ -1,3 +1,7 @@
+## 2024-12-23 -- v1.1.0
+### Added
+- Re-query ShopperTrak API for sites missing from a previous API response. This is distinct from re-querying for sites that appear in the API response but have unhealthy data (which is already done).
+
 ## 2024-11-21 -- v1.0.5
 ### Fixed
 - Catch non-fatal XML errors and continue requesting. Only throw an error and stop when the API limit has been exceeded, when the request itself has failed, or when the ShopperTrak server cannot be reached even after retrying.

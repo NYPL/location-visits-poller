@@ -1,9 +1,12 @@
+import itertools
 import os
 import pytz
 
 from datetime import datetime, timedelta
 from helpers.query_helper import (
+    build_redshift_closures_query,
     build_redshift_create_table_query,
+    build_redshift_found_sites_query,
     build_redshift_hours_query,
     build_redshift_known_query,
     build_redshift_update_query,
@@ -49,7 +52,14 @@ class PipelineController:
             redshift_suffix = "_" + os.environ["REDSHIFT_DB_NAME"]
         self.redshift_visits_table = "location_visits" + redshift_suffix
         self.redshift_hours_table = "location_hours" + redshift_suffix
+        self.redshift_closures_table = "location_closures" + redshift_suffix
         self.redshift_branch_codes_table = "branch_codes_map" + redshift_suffix
+
+        all_sites_s3_client = S3Client(
+            os.environ["ALL_SITES_S3_BUCKET"], os.environ["ALL_SITES_S3_RESOURCE"]
+        )
+        self.all_site_ids = set(all_sites_s3_client.fetch_cache())
+        all_sites_s3_client.close()
 
         self.ignore_update = os.environ.get("IGNORE_UPDATE", False) == "True"
         self.ignore_cache = os.environ.get("IGNORE_CACHE", False) == "True"
@@ -141,12 +151,16 @@ class PipelineController:
         Re-queries individual sites with unhealthy data from the past 30 days (a limit
         set by the API) to see if any data has since been recovered
         """
+        found_sites_query = build_redshift_found_sites_query(
+            self.redshift_visits_table, start_date, end_date
+        )
         create_table_query = build_redshift_create_table_query(
             self.redshift_visits_table, start_date, end_date
         )
         self.redshift_client.connect()
+        found_site_dates = self.redshift_client.execute_query(found_sites_query)
         self.redshift_client.execute_transaction([(create_table_query, None)])
-        recoverable_site_dates = self.redshift_client.execute_query(
+        unhealthy_site_dates = self.redshift_client.execute_query(
             REDSHIFT_RECOVERABLE_QUERY
         )
         known_data = self.redshift_client.execute_query(
@@ -161,12 +175,43 @@ class PipelineController:
         # records when only some of the data for a site needs to be recovered on a
         # particular date (e.g. when only one of several orbits is broken, or when an
         # orbit goes down in the middle of the day).
+        recoverable_site_dates = [tuple(row) for row in unhealthy_site_dates]
         known_data_dict = dict()
         if known_data:
             known_data_dict = {
                 (site_id, orbit, inc_start): (redshift_id, is_healthy, enters, exits)
                 for site_id, orbit, inc_start, redshift_id, is_healthy, enters, exits in known_data
             }
+
+        # Compare the set of (site_id, date) tuples found in Redshift to the set of all
+        # such tuples that should exist to see if any sites are missing from Redshift
+        # and need to be re-queried. This is as opposed to sites that are present in
+        # Redshift but have unhealthy data.
+        found_site_dates = set([tuple(row) for row in found_site_dates])
+        all_dates = [
+            start_date + timedelta(days=n) for n in range((end_date - start_date).days)
+        ]
+        all_site_dates = set(itertools.product(self.all_site_ids, all_dates))
+        missing_site_dates = all_site_dates.difference(found_site_dates)
+
+        # Don't count sites that were closed all day outside of regular hours as missing
+        if missing_site_dates:
+            closures_query = build_redshift_closures_query(
+                self.redshift_closures_table,
+                self.redshift_branch_codes_table,
+                start_date,
+            )
+            closed_site_dates = self.redshift_client.execute_query(closures_query)
+            closed_site_dates = set([tuple(row) for row in closed_site_dates])
+            recoverable_site_dates += [
+                (site, visits_date)
+                for (site, visits_date) in missing_site_dates
+                if (site[:2], visits_date) not in closed_site_dates
+            ]
+
+        recoverable_site_dates = sorted(
+            recoverable_site_dates, key=lambda x: (x[1], x[0])
+        )
         self._recover_data(recoverable_site_dates, known_data_dict)
         self.redshift_client.close_connection()
 
