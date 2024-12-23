@@ -19,6 +19,19 @@ _REDSHIFT_HOURS_QUERY = """
             )
         );"""
 
+_REDSHIFT_CLOSURES_QUERY = """
+    SELECT sierra_code, closure_date
+    FROM {closures_table}
+    LEFT JOIN {codes_table}
+        ON {closures_table}.drupal_location_id = {codes_table}.drupal_code
+    WHERE closure_date >= '{start_date}' AND is_full_day;"""
+
+_REDSHIFT_FOUND_SITES_QUERY = """
+    SELECT shoppertrak_site_id, increment_start::DATE AS visits_date
+    FROM {table}
+    WHERE visits_date >= '{start_date}' AND visits_date < '{end_date}'
+    GROUP BY shoppertrak_site_id, visits_date;"""
+
 _REDSHIFT_CREATE_TABLE_QUERY = """
     CREATE TEMPORARY TABLE #recoverable_site_dates AS
     SELECT shoppertrak_site_id, increment_start::DATE AS increment_date
@@ -52,6 +65,18 @@ REDSHIFT_RECOVERABLE_QUERY = """
 def build_redshift_hours_query(hours_table, codes_table):
     return _REDSHIFT_HOURS_QUERY.format(
         hours_table=hours_table, codes_table=codes_table
+    )
+
+
+def build_redshift_closures_query(closures_table, codes_table, start_date):
+    return _REDSHIFT_CLOSURES_QUERY.format(
+        closures_table=closures_table, codes_table=codes_table, start_date=start_date
+    )
+
+
+def build_redshift_found_sites_query(table, start_date, end_date):
+    return _REDSHIFT_FOUND_SITES_QUERY.format(
+        table=table, start_date=start_date, end_date=end_date
     )
 
 

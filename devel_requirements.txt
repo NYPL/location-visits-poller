@@ -1,5 +1,5 @@
 black
+freezegun
 pytest
-pytest-freezer
 pytest-mock
 requests-mock

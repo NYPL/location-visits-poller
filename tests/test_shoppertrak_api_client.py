@@ -7,7 +7,7 @@ from copy import deepcopy
 from datetime import date, time
 from lib import APIStatus, ShopperTrakApiClient, ShopperTrakApiClientError
 from requests.exceptions import ConnectTimeout
-from tests.test_helpers import TestHelpers
+
 
 _PRETTY_API_RESPONSE = """
 <?xml version="1.0" ?>
@@ -92,14 +92,7 @@ _PARSED_RESULT = [
 ]
 
 
-@pytest.mark.freeze_time("2024-01-01 23:00:00-05:00")
 class TestPipelineController:
-
-    @pytest.fixture(autouse=True)
-    def teardown_class(cls):
-        TestHelpers.set_env_vars()
-        yield
-        TestHelpers.clear_env_vars()
 
     @pytest.fixture
     def test_instance(self):

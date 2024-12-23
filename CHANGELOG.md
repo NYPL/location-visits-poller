@@ -1,3 +1,7 @@
+## 2024-12-23 -- v1.1.0
+### Added
+- Re-query ShopperTrak API for sites missing from a previous API response. This is distinct from re-querying for sites that appear in the API response but have unhealthy data (which is already done).
+
 ## 2024-12-19 -- v1.0.6
 ### Fixed
 - URL quote special characters in site IDs to escape them
