@@ -203,11 +203,13 @@ class PipelineController:
             )
             closed_site_dates = self.redshift_client.execute_query(closures_query)
             closed_site_dates = set([tuple(row) for row in closed_site_dates])
-            recoverable_site_dates += [
+            missing_site_dates = [
                 (site, visits_date)
                 for (site, visits_date) in missing_site_dates
                 if (site[:2], visits_date) not in closed_site_dates
             ]
+            recoverable_site_dates += missing_site_dates
+            self.logger.info(f"Found the following missing sites: {missing_site_dates}")
 
         recoverable_site_dates = sorted(
             recoverable_site_dates, key=lambda x: (x[1], x[0])
