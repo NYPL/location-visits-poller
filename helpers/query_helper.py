@@ -24,7 +24,7 @@ _REDSHIFT_CLOSURES_QUERY = """
     FROM {closures_table}
     LEFT JOIN {codes_table}
         ON {closures_table}.drupal_location_id = {codes_table}.drupal_code
-    WHERE closure_date >= '{start_date}' AND is_full_day;"""
+    WHERE closure_date >= '{start_date}' AND is_extended_closure AND is_full_day;"""
 
 _REDSHIFT_FOUND_SITES_QUERY = """
     SELECT shoppertrak_site_id, increment_start::DATE AS visits_date

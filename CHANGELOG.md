@@ -1,3 +1,8 @@
+## 2024-12-30 -- v1.1.1
+### Fixed
+- For days that are missing entire sites, send any recovered data to Kinesis even if it's unhealthy
+- For days that are missing entire sites, re-query the API even if the site is temporarily closed that day
+
 ## 2024-12-23 -- v1.1.0
 ### Added
 - Re-query ShopperTrak API for sites missing from a previous API response. This is distinct from re-querying for sites that appear in the API response but have unhealthy data (which is already done).

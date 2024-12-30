@@ -307,14 +307,6 @@ class TestPipelineController:
 
     def test_process_broken_orbits_missing_sites(
             self, test_instance, mock_logger, mocker):
-        RESULT = [
-            ("aa", date(2023, 12, 1)),
-            ("bb", date(2023, 12, 1)),
-            ("cc", date(2023, 12, 1)),
-            ("ee", date(2023, 12, 1)),
-            ("aa", date(2023, 12, 2)),
-            ("dd", date(2023, 12, 2)),
-        ]
         mocked_closures_query = mocker.patch(
             "lib.pipeline_controller.build_redshift_closures_query",
             return_value="CLOSURES",
@@ -342,9 +334,13 @@ class TestPipelineController:
             "branch_codes_map_test_redshift_name",
             date(2023, 12, 1),
         )
-        mocked_recover_data_method.assert_called_once_with(
-            RESULT, _TEST_KNOWN_DATA_DICT,
-        )
+        mocked_recover_data_method.assert_has_calls([
+            mocker.call([("ee", date(2023, 12, 1)), ("dd", date(2023, 12, 2))],
+                        dict(), is_recovery_mode=False),
+            mocker.call([("aa", date(2023, 12, 1)), ("bb", date(2023, 12, 1)),
+                         ("cc", date(2023, 12, 1)), ("aa", date(2023, 12, 2))],
+                        _TEST_KNOWN_DATA_DICT),
+        ])
 
     def test_recover_data(self, test_instance, mock_logger, mocker):
         TEST_API_DATA = _build_test_api_data("2023-12-01", True)

@@ -168,33 +168,17 @@ class PipelineController:
         )
         self.redshift_client.execute_transaction([(REDSHIFT_DROP_QUERY, None)])
 
-        # For all the site/date pairs with unhealthy data, form a dictionary of the
-        # currently stored data for those sites on those dates where the key is (site
-        # ID, orbit, timestamp) and the value is (Redshift ID, is_healthy_data, enters,
-        # exits). This is to mark old rows as stale and to prevent sending duplicate
-        # records when only some of the data for a site needs to be recovered on a
-        # particular date (e.g. when only one of several orbits is broken, or when an
-        # orbit goes down in the middle of the day).
-        recoverable_site_dates = [tuple(row) for row in unhealthy_site_dates]
-        known_data_dict = dict()
-        if known_data:
-            known_data_dict = {
-                (site_id, orbit, inc_start): (redshift_id, is_healthy, enters, exits)
-                for site_id, orbit, inc_start, redshift_id, is_healthy, enters, exits in known_data
-            }
-
         # Compare the set of (site_id, date) tuples found in Redshift to the set of all
         # such tuples that should exist to see if any sites are missing from Redshift
         # and need to be re-queried. This is as opposed to sites that are present in
-        # Redshift but have unhealthy data.
+        # Redshift but have unhealthy data. We do not count sites in extended closures
+        # as missing.
         found_site_dates = set([tuple(row) for row in found_site_dates])
         all_dates = [
             start_date + timedelta(days=n) for n in range((end_date - start_date).days)
         ]
         all_site_dates = set(itertools.product(self.all_site_ids, all_dates))
         missing_site_dates = all_site_dates.difference(found_site_dates)
-
-        # Don't count sites that were closed all day outside of regular hours as missing
         if missing_site_dates:
             closures_query = build_redshift_closures_query(
                 self.redshift_closures_table,
@@ -208,16 +192,30 @@ class PipelineController:
                 for (site, visits_date) in missing_site_dates
                 if (site[:2], visits_date) not in closed_site_dates
             ]
-            recoverable_site_dates += missing_site_dates
-            self.logger.info(f"Found the following missing sites: {missing_site_dates}")
+            missing_site_dates = sorted(missing_site_dates, key=lambda x: (x[1], x[0]))
+            self.logger.info("Re-querying for previously missing data")
+            self._recover_data(missing_site_dates, dict(), is_recovery_mode=False)
 
-        recoverable_site_dates = sorted(
-            recoverable_site_dates, key=lambda x: (x[1], x[0])
-        )
-        self._recover_data(recoverable_site_dates, known_data_dict)
+        # For all the site/date pairs with unhealthy data, form a dictionary of the
+        # currently stored data for those sites on those dates where the key is (site
+        # ID, orbit, timestamp) and the value is (Redshift ID, is_healthy_data, enters,
+        # exits). This is to mark old rows as stale and to prevent sending duplicate
+        # records when only some of the data for a site needs to be recovered on a
+        # particular date (e.g. when only one of several orbits is broken, or when an
+        # orbit goes down in the middle of the day).
+        unhealthy_site_dates = [tuple(row) for row in unhealthy_site_dates]
+        unhealthy_site_dates = sorted(unhealthy_site_dates, key=lambda x: (x[1], x[0]))
+        known_data_dict = dict()
+        if known_data:
+            known_data_dict = {
+                (site_id, orbit, inc_start): (redshift_id, is_healthy, enters, exits)
+                for site_id, orbit, inc_start, redshift_id, is_healthy, enters, exits in known_data
+            }
+        self.logger.info("Re-querying for previously unhealthy data")
+        self._recover_data(unhealthy_site_dates, known_data_dict)
         self.redshift_client.close_connection()
 
-    def _recover_data(self, site_dates, known_data_dict):
+    def _recover_data(self, site_dates, known_data_dict, is_recovery_mode=True):
         """
         Individually query the ShopperTrak API for each site/date pair with any
         unhealthy data. Then check to see if the returned data is actually "recovered"
@@ -231,7 +229,7 @@ class PipelineController:
                 self.logger.error(f"Failed to retrieve site visits data for {site_id}")
             else:
                 site_results = self.shoppertrak_api_client.parse_response(
-                    site_response, visits_date, is_recovery_mode=True
+                    site_response, visits_date, is_recovery_mode=is_recovery_mode
                 )
                 self._process_recovered_data(site_results, known_data_dict)
 
