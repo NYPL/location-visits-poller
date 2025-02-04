@@ -1,3 +1,7 @@
+## 2025-02-04 -- v1.1.2
+### Fixed
+- Do not attempt to recover healthy data by re-querying ShopperTrak when the initial unhealthy data occurred during an extended closure
+
 ## 2024-12-30 -- v1.1.1
 ### Fixed
 - For days that are missing entire sites, send any recovered data to Kinesis even if it's unhealthy

@@ -151,6 +151,11 @@ class PipelineController:
         Re-queries individual sites with unhealthy data from the past 30 days (a limit
         set by the API) to see if any data has since been recovered
         """
+        closures_query = build_redshift_closures_query(
+            self.redshift_closures_table,
+            self.redshift_branch_codes_table,
+            start_date,
+        )
         found_sites_query = build_redshift_found_sites_query(
             self.redshift_visits_table, start_date, end_date
         )
@@ -158,6 +163,7 @@ class PipelineController:
             self.redshift_visits_table, start_date, end_date
         )
         self.redshift_client.connect()
+        closed_site_dates = self.redshift_client.execute_query(closures_query)
         found_site_dates = self.redshift_client.execute_query(found_sites_query)
         self.redshift_client.execute_transaction([(create_table_query, None)])
         unhealthy_site_dates = self.redshift_client.execute_query(
@@ -173,6 +179,7 @@ class PipelineController:
         # and need to be re-queried. This is as opposed to sites that are present in
         # Redshift but have unhealthy data. We do not count sites in extended closures
         # as missing.
+        closed_site_dates = set([tuple(row) for row in closed_site_dates])
         found_site_dates = set([tuple(row) for row in found_site_dates])
         all_dates = [
             start_date + timedelta(days=n) for n in range((end_date - start_date).days)
@@ -180,13 +187,6 @@ class PipelineController:
         all_site_dates = set(itertools.product(self.all_site_ids, all_dates))
         missing_site_dates = all_site_dates.difference(found_site_dates)
         if missing_site_dates:
-            closures_query = build_redshift_closures_query(
-                self.redshift_closures_table,
-                self.redshift_branch_codes_table,
-                start_date,
-            )
-            closed_site_dates = self.redshift_client.execute_query(closures_query)
-            closed_site_dates = set([tuple(row) for row in closed_site_dates])
             missing_site_dates = [
                 (site, visits_date)
                 for (site, visits_date) in missing_site_dates
@@ -203,7 +203,11 @@ class PipelineController:
         # records when only some of the data for a site needs to be recovered on a
         # particular date (e.g. when only one of several orbits is broken, or when an
         # orbit goes down in the middle of the day).
-        unhealthy_site_dates = [tuple(row) for row in unhealthy_site_dates]
+        unhealthy_site_dates = [
+            (site, visits_date)
+            for (site, visits_date) in unhealthy_site_dates
+            if (site[:2], visits_date) not in closed_site_dates
+        ]
         unhealthy_site_dates = sorted(unhealthy_site_dates, key=lambda x: (x[1], x[0]))
         known_data_dict = dict()
         if known_data:

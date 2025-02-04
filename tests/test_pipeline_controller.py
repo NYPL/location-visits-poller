@@ -247,6 +247,10 @@ class TestPipelineController:
 
     def test_process_broken_orbits_no_missing_sites(
             self, test_instance, mock_logger, mocker):
+        mocked_closures_query = mocker.patch(
+            "lib.pipeline_controller.build_redshift_closures_query",
+            return_value="CLOSURES",
+        )
         mocked_found_sites_query = mocker.patch(
             "lib.pipeline_controller.build_redshift_found_sites_query",
             return_value="FOUND SITES",
@@ -259,13 +263,11 @@ class TestPipelineController:
             "lib.pipeline_controller.build_redshift_known_query",
             return_value="KNOWN",
         )
-        mocked_closures_query = mocker.patch(
-            "lib.pipeline_controller.build_redshift_closures_query"
-        )
         mocked_recover_data_method = mocker.patch(
             "lib.pipeline_controller.PipelineController._recover_data"
         )
         test_instance.redshift_client.execute_query.side_effect = [
+            [],
             (["aa", date(2023, 12, 1)], ["bb", date(2023, 12, 1)],
              ["cc", date(2023, 12, 1)], ["dd", date(2023, 12, 1)],
              ["ee", date(2023, 12, 1)], ["aa", date(2023, 12, 2)],
@@ -285,11 +287,17 @@ class TestPipelineController:
             ]
         )
         test_instance.redshift_client.execute_query.assert_has_calls(
-            [mocker.call("FOUND SITES"),
+            [mocker.call("CLOSURES"),
+             mocker.call("FOUND SITES"),
              mocker.call(REDSHIFT_RECOVERABLE_QUERY),
              mocker.call("KNOWN")]
         )
         test_instance.redshift_client.close_connection.assert_called_once()
+        mocked_closures_query.assert_called_once_with(
+            "location_closures_test_redshift_name",
+            "branch_codes_map_test_redshift_name",
+            date(2023, 12, 1),
+        )
         mocked_found_sites_query.assert_called_once_with(
             "location_visits_test_redshift_name", date(2023, 12, 1), date(2023, 12, 3)
         )
@@ -303,43 +311,31 @@ class TestPipelineController:
             [tuple(row) for row in _TEST_RECOVERABLE_SITE_DATES],
             _TEST_KNOWN_DATA_DICT,
         )
-        mocked_closures_query.assert_not_called()
 
     def test_process_broken_orbits_missing_sites(
             self, test_instance, mock_logger, mocker):
-        mocked_closures_query = mocker.patch(
-            "lib.pipeline_controller.build_redshift_closures_query",
-            return_value="CLOSURES",
-        )
         mocked_recover_data_method = mocker.patch(
             "lib.pipeline_controller.PipelineController._recover_data"
         )
         test_instance.redshift_client.execute_query.side_effect = [
+            (["cc", date(2023, 12, 1)], ["ee", date(2023, 12, 2)]),
             (["aa", date(2023, 12, 1)], ["bb", date(2023, 12, 1)],
              ["cc", date(2023, 12, 1)], ["dd", date(2023, 12, 1)],
              ["aa", date(2023, 12, 2)], ["bb", date(2023, 12, 2)],
              ["cc", date(2023, 12, 2)]),
             _TEST_RECOVERABLE_SITE_DATES,
             [k + v for k, v in _TEST_KNOWN_DATA_DICT.items()],
-            (["ee", date(2023, 12, 2)],),
         ]
 
         test_instance.process_broken_orbits(date(2023, 12, 1), date(2023, 12, 3))
 
         test_instance.redshift_client.connect.assert_called_once()
-        test_instance.redshift_client.execute_query.assert_any_call("CLOSURES")
         test_instance.redshift_client.close_connection.assert_called_once()
-        mocked_closures_query.assert_called_once_with(
-            "location_closures_test_redshift_name",
-            "branch_codes_map_test_redshift_name",
-            date(2023, 12, 1),
-        )
         mocked_recover_data_method.assert_has_calls([
             mocker.call([("ee", date(2023, 12, 1)), ("dd", date(2023, 12, 2))],
                         dict(), is_recovery_mode=False),
             mocker.call([("aa", date(2023, 12, 1)), ("bb", date(2023, 12, 1)),
-                         ("cc", date(2023, 12, 1)), ("aa", date(2023, 12, 2))],
-                        _TEST_KNOWN_DATA_DICT),
+                         ("aa", date(2023, 12, 2))], _TEST_KNOWN_DATA_DICT),
         ])
 
     def test_recover_data(self, test_instance, mock_logger, mocker):
