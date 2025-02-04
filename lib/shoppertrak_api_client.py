@@ -167,10 +167,11 @@ class ShopperTrakApiClient:
             )
 
         # Determine if unhealthy data with 0 entrances/exits is missing or imputed by
-        # checking if it occurs during a library's regular hours. This assumes imputed
-        # data during a library's regular hours will always have at least one entrance/
-        # exit, but this is acceptable as it's preferable to erroneously mark imputed
-        # data as missing than the reverse.
+        # checking if it occurs during a library's regular hours. This 1) assumes that
+        # imputed data during a library's regular hours will always have at least one
+        # entrance/exit, and 2) ignores irregular closures. However, these are
+        # acceptable assumptions, as it's preferable to erroneously mark imputed
+        # data as missing than to do the reverse.
         if is_healthy_data or is_recovery_mode or enters > 0 or exits > 0:
             is_missing_data = False
         else:
