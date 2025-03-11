@@ -1,3 +1,7 @@
+## 2025-03-11 -- v1.1.3
+### Fixed
+- Do not attempt to recover healthy data by re-querying ShopperTrak when the initial unhealthy data occurred during a full-day closure (extended or otherwise)
+
 ## 2025-02-04 -- v1.1.2
 ### Fixed
 - Do not attempt to recover healthy data by re-querying ShopperTrak when the initial unhealthy data occurred during an extended closure
