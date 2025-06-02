@@ -14,6 +14,7 @@ from helpers.query_helper import (
     REDSHIFT_DROP_QUERY,
     REDSHIFT_RECOVERABLE_QUERY,
 )
+from helpers.util import log_based_on_poll_date
 from lib import (
     APIStatus,
     ShopperTrakApiClient,
@@ -32,10 +33,18 @@ class PipelineController:
 
     def __init__(self):
         self.logger = create_log("pipeline_controller")
+
+        self.bad_poll_dates = os.environ.get("BAD_POLL_DATES", "[]")
+        self.bad_poll_dates = [
+            datetime.fromisoformat(day).date()
+            for day in json.loads(self.bad_poll_dates)
+        ]
+
         self.shoppertrak_api_client = ShopperTrakApiClient(
             os.environ["SHOPPERTRAK_USERNAME"],
             os.environ["SHOPPERTRAK_PASSWORD"],
             dict(),
+            self.bad_poll_dates,
         )
         self.redshift_client = RedshiftClient(
             os.environ["REDSHIFT_DB_HOST"],
@@ -62,12 +71,6 @@ class PipelineController:
         self.all_site_ids = set(all_sites_s3_client.fetch_cache())
         all_sites_s3_client.close()
 
-        self.bad_poll_dates = json.loads(os.environ["BAD_POLL_DATES"])
-        if self.bad_poll_dates:
-            self.bad_poll_dates = [
-                datetime.strptime(day, "%Y-%m-%d").date() for day in self.bad_poll_dates
-            ]
-
         self.ignore_update = os.environ.get("IGNORE_UPDATE", False) == "True"
         self.ignore_cache = os.environ.get("IGNORE_CACHE", False) == "True"
         if not self.ignore_cache:
@@ -88,7 +91,7 @@ class PipelineController:
 
         all_sites_start_date = self._get_poll_date(0) + timedelta(days=1)
         all_sites_end_date = (
-            datetime.strptime(os.environ["END_DATE"], "%Y-%m-%d").date()
+            datetime.fromisoformat(os.environ["END_DATE"]).date()
             if self.ignore_cache
             else self.yesterday
         )
@@ -238,10 +241,9 @@ class PipelineController:
             )
             if site_response == APIStatus.ERROR:
                 message = f"Failed to retrieve site visits data for {site_id}"
-                if visits_date in self.bad_poll_dates:
-                    self.logger.info(message)
-                else:
-                    self.logger.error(message)
+                log_based_on_poll_date(
+                    self.logger, message, (visits_date in self.bad_poll_dates)
+                )
             else:
                 site_results = self.shoppertrak_api_client.parse_response(
                     site_response, visits_date, is_recovery_mode=is_recovery_mode
