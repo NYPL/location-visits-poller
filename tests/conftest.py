@@ -13,6 +13,7 @@ TEST_ENV_VARS = {
     "REDSHIFT_DB_PASSWORD": "test_redshift_password",
     "SHOPPERTRAK_API_BASE_URL": "https://test_shoppertrak_url/",
     "MAX_RETRIES": "3",
+    "BAD_POLL_DATES": '[]',
     "S3_BUCKET": "test_s3_bucket",
     "S3_RESOURCE": "test_s3_resource",
     "ALL_SITES_S3_BUCKET": "test_all_sites_s3_bucket",

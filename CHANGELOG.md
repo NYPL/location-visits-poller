@@ -1,4 +1,8 @@
 ## 2025-03-11 -- v1.1.3
+### Added
+- Added 'BAD_POLL_DATES' environment variable, which is a list of date strings. If data is erroring in those days, we do not log an error
+
+## 2025-03-11 -- v1.1.3
 ### Fixed
 - Do not attempt to recover healthy data by re-querying ShopperTrak when the initial unhealthy data occurred during a full-day closure (extended or otherwise)
 

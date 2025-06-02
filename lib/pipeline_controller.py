@@ -1,4 +1,5 @@
 import itertools
+import json
 import os
 import pytz
 
@@ -60,6 +61,12 @@ class PipelineController:
         )
         self.all_site_ids = set(all_sites_s3_client.fetch_cache())
         all_sites_s3_client.close()
+
+        self.bad_poll_dates = json.loads(os.environ["BAD_POLL_DATES"])
+        if self.bad_poll_dates:
+            self.bad_poll_dates = [
+                datetime.strptime(day, "%Y-%m-%d").date() for day in self.bad_poll_dates
+            ]
 
         self.ignore_update = os.environ.get("IGNORE_UPDATE", False) == "True"
         self.ignore_cache = os.environ.get("IGNORE_CACHE", False) == "True"
@@ -230,7 +237,11 @@ class PipelineController:
                 SINGLE_SITE_ENDPOINT + site_id, visits_date
             )
             if site_response == APIStatus.ERROR:
-                self.logger.error(f"Failed to retrieve site visits data for {site_id}")
+                message = f"Failed to retrieve site visits data for {site_id}"
+                if visits_date in self.bad_poll_dates:
+                    self.logger.info(message)
+                else:
+                    self.logger.error(message)
             else:
                 site_results = self.shoppertrak_api_client.parse_response(
                     site_response, visits_date, is_recovery_mode=is_recovery_mode
