@@ -453,7 +453,7 @@ class TestPipelineController:
                 _TEST_KNOWN_DATA_DICT,
             )
 
-        # Verify that  although ShopperTrak returned APIStatus.Error, we
+        # Verify that although ShopperTrak returned APIStatus.Error, we
         # only send INFO messages for known bad poll dates. We don't alert
         assert len(caplog.records) == 1
         assert caplog.records[0].levelname == "INFO"
