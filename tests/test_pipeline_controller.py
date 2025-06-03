@@ -24,6 +24,7 @@ _TEST_RECOVERABLE_SITE_DATES = (
 _TEST_ENCODED_RECORDS = [b"encoded1", b"encoded2", b"encoded3"]
 _TEST_XML_ROOT = ET.fromstring('<?xml version="1.0"?><element></element>')
 
+
 def _build_test_api_data(increment_date_str, is_all_healthy_data):
     return [
         {
@@ -91,8 +92,10 @@ class TestPipelineController:
         mocker.patch("lib.pipeline_controller.AvroEncoder")
         mocker.patch("lib.pipeline_controller.KinesisClient")
         mocker.patch("lib.pipeline_controller.RedshiftClient")
-        mocker.patch("lib.pipeline_controller.S3Client",
-                     side_effect=[mocker.MagicMock(), mocker.MagicMock()])
+        mocker.patch(
+            "lib.pipeline_controller.S3Client",
+            side_effect=[mocker.MagicMock(), mocker.MagicMock()],
+        )
         mocker.patch("lib.pipeline_controller.ShopperTrakApiClient")
         test_instance = PipelineController()
         test_instance.all_site_ids = {"aa", "bb", "cc", "dd", "ee"}
@@ -110,7 +113,7 @@ class TestPipelineController:
 
         mocked_location_hours_method = mocker.patch(
             "lib.pipeline_controller.PipelineController.get_location_hours_dict",
-            return_value = _TEST_LOCATION_HOURS_DICT
+            return_value=_TEST_LOCATION_HOURS_DICT,
         )
         mocked_all_sites_method = mocker.patch(
             "lib.pipeline_controller.PipelineController.process_all_sites_data"
@@ -122,19 +125,21 @@ class TestPipelineController:
         mock_all_sites_s3_client = mocker.MagicMock()
         mock_all_sites_s3_client.fetch_cache.return_value = ["aa", "bb"]
         mock_s3_client = mocker.MagicMock()
-        mock_s3_client.fetch_cache.return_value = {
-            "last_poll_date": "2023-12-29"
-        }
+        mock_s3_client.fetch_cache.return_value = {"last_poll_date": "2023-12-29"}
         mock_s3_constructor = mocker.patch(
             "lib.pipeline_controller.S3Client",
-            side_effect=[mock_all_sites_s3_client, mock_s3_client])
+            side_effect=[mock_all_sites_s3_client, mock_s3_client],
+        )
 
         test_instance = PipelineController()
         assert test_instance.shoppertrak_api_client.location_hours_dict == dict()
         assert test_instance.all_site_ids == {"aa", "bb"}
-        mock_s3_constructor.assert_has_calls([
-            mocker.call("test_all_sites_s3_bucket", "test_all_sites_s3_resource"),
-            mocker.call("test_s3_bucket", "test_s3_resource")])
+        mock_s3_constructor.assert_has_calls(
+            [
+                mocker.call("test_all_sites_s3_bucket", "test_all_sites_s3_resource"),
+                mocker.call("test_s3_bucket", "test_s3_resource"),
+            ]
+        )
         mock_all_sites_s3_client.fetch_cache.assert_called_once()
         mock_all_sites_s3_client.close.assert_called_once()
 
@@ -226,10 +231,11 @@ class TestPipelineController:
                 mocker.call({"last_poll_date": "2023-12-31"}),
             ]
         )
-    
+
     def test_process_all_sites_error(self, test_instance, mock_logger, mocker, caplog):
         test_instance.s3_client.fetch_cache.return_value = {
-            "last_poll_date": "2023-12-30"}
+            "last_poll_date": "2023-12-30"
+        }
         test_instance.shoppertrak_api_client.query.return_value = APIStatus.ERROR
 
         with caplog.at_level(logging.WARNING):
@@ -246,7 +252,8 @@ class TestPipelineController:
         test_instance.s3_client.set_cache.assert_not_called()
 
     def test_process_broken_orbits_no_missing_sites(
-            self, test_instance, mock_logger, mocker):
+        self, test_instance, mock_logger, mocker
+    ):
         mocked_closures_query = mocker.patch(
             "lib.pipeline_controller.build_redshift_closures_query",
             return_value="CLOSURES",
@@ -268,11 +275,18 @@ class TestPipelineController:
         )
         test_instance.redshift_client.execute_query.side_effect = [
             [],
-            (["aa", date(2023, 12, 1)], ["bb", date(2023, 12, 1)],
-             ["cc", date(2023, 12, 1)], ["dd", date(2023, 12, 1)],
-             ["ee", date(2023, 12, 1)], ["aa", date(2023, 12, 2)],
-             ["bb", date(2023, 12, 2)], ["cc", date(2023, 12, 2)],
-             ["dd", date(2023, 12, 2)], ["ee", date(2023, 12, 2)]),
+            (
+                ["aa", date(2023, 12, 1)],
+                ["bb", date(2023, 12, 1)],
+                ["cc", date(2023, 12, 1)],
+                ["dd", date(2023, 12, 1)],
+                ["ee", date(2023, 12, 1)],
+                ["aa", date(2023, 12, 2)],
+                ["bb", date(2023, 12, 2)],
+                ["cc", date(2023, 12, 2)],
+                ["dd", date(2023, 12, 2)],
+                ["ee", date(2023, 12, 2)],
+            ),
             _TEST_RECOVERABLE_SITE_DATES,
             [k + v for k, v in _TEST_KNOWN_DATA_DICT.items()],
         ]
@@ -287,10 +301,12 @@ class TestPipelineController:
             ]
         )
         test_instance.redshift_client.execute_query.assert_has_calls(
-            [mocker.call("CLOSURES"),
-             mocker.call("FOUND SITES"),
-             mocker.call(REDSHIFT_RECOVERABLE_QUERY),
-             mocker.call("KNOWN")]
+            [
+                mocker.call("CLOSURES"),
+                mocker.call("FOUND SITES"),
+                mocker.call(REDSHIFT_RECOVERABLE_QUERY),
+                mocker.call("KNOWN"),
+            ]
         )
         test_instance.redshift_client.close_connection.assert_called_once()
         mocked_closures_query.assert_called_once_with(
@@ -313,16 +329,22 @@ class TestPipelineController:
         )
 
     def test_process_broken_orbits_missing_sites(
-            self, test_instance, mock_logger, mocker):
+        self, test_instance, mock_logger, mocker
+    ):
         mocked_recover_data_method = mocker.patch(
             "lib.pipeline_controller.PipelineController._recover_data"
         )
         test_instance.redshift_client.execute_query.side_effect = [
             (["cc", date(2023, 12, 1)], ["ee", date(2023, 12, 2)]),
-            (["aa", date(2023, 12, 1)], ["bb", date(2023, 12, 1)],
-             ["cc", date(2023, 12, 1)], ["dd", date(2023, 12, 1)],
-             ["aa", date(2023, 12, 2)], ["bb", date(2023, 12, 2)],
-             ["cc", date(2023, 12, 2)]),
+            (
+                ["aa", date(2023, 12, 1)],
+                ["bb", date(2023, 12, 1)],
+                ["cc", date(2023, 12, 1)],
+                ["dd", date(2023, 12, 1)],
+                ["aa", date(2023, 12, 2)],
+                ["bb", date(2023, 12, 2)],
+                ["cc", date(2023, 12, 2)],
+            ),
             _TEST_RECOVERABLE_SITE_DATES,
             [k + v for k, v in _TEST_KNOWN_DATA_DICT.items()],
         ]
@@ -331,19 +353,33 @@ class TestPipelineController:
 
         test_instance.redshift_client.connect.assert_called_once()
         test_instance.redshift_client.close_connection.assert_called_once()
-        mocked_recover_data_method.assert_has_calls([
-            mocker.call([("ee", date(2023, 12, 1)), ("dd", date(2023, 12, 2))],
-                        dict(), is_recovery_mode=False),
-            mocker.call([("aa", date(2023, 12, 1)), ("bb", date(2023, 12, 1)),
-                         ("aa", date(2023, 12, 2))], _TEST_KNOWN_DATA_DICT),
-        ])
+        mocked_recover_data_method.assert_has_calls(
+            [
+                mocker.call(
+                    [("ee", date(2023, 12, 1)), ("dd", date(2023, 12, 2))],
+                    dict(),
+                    is_recovery_mode=False,
+                ),
+                mocker.call(
+                    [
+                        ("aa", date(2023, 12, 1)),
+                        ("bb", date(2023, 12, 1)),
+                        ("aa", date(2023, 12, 2)),
+                    ],
+                    _TEST_KNOWN_DATA_DICT,
+                ),
+            ]
+        )
 
     def test_recover_data(self, test_instance, mock_logger, mocker):
         TEST_API_DATA = _build_test_api_data("2023-12-01", True)
 
         test_instance.shoppertrak_api_client.query.return_value = _TEST_XML_ROOT
         test_instance.shoppertrak_api_client.parse_response.side_effect = [
-            TEST_API_DATA[:3], TEST_API_DATA[3:4], TEST_API_DATA[4:], []
+            TEST_API_DATA[:3],
+            TEST_API_DATA[3:4],
+            TEST_API_DATA[4:],
+            [],
         ]
         mocked_process_recovered_data_method = mocker.patch(
             "lib.pipeline_controller.PipelineController._process_recovered_data"
@@ -384,9 +420,74 @@ class TestPipelineController:
             ]
         )
 
+    def test_recover_data_with_bad_poll_date(
+        self, test_instance, mock_logger, mocker, caplog
+    ):
+        # mock bad poll date variable
+        test_instance.bad_poll_dates = [date(2023, 12, 2)]
+        TEST_API_DATA = _build_test_api_data("2023-12-01", True)
+
+        test_instance.shoppertrak_api_client.query.side_effect = [
+            _TEST_XML_ROOT,
+            _TEST_XML_ROOT,
+            _TEST_XML_ROOT,
+            APIStatus.ERROR,
+        ]
+        test_instance.shoppertrak_api_client.parse_response.side_effect = [
+            TEST_API_DATA[:3],
+            TEST_API_DATA[3:4],
+            TEST_API_DATA[4:],
+        ]
+        mocked_process_recovered_data_method = mocker.patch(
+            "lib.pipeline_controller.PipelineController._process_recovered_data"
+        )
+
+        with caplog.at_level(logging.INFO):
+            test_instance._recover_data(
+                [
+                    ("aa", date(2023, 12, 1)),
+                    ("bb", date(2023, 12, 1)),
+                    ("cc", date(2023, 12, 1)),
+                    ("aa", date(2023, 12, 2)),
+                ],
+                _TEST_KNOWN_DATA_DICT,
+            )
+
+        # Verify that although ShopperTrak returned APIStatus.Error, we
+        # only send INFO messages for known bad poll dates. We don't alert
+        assert len(caplog.records) == 1
+        assert caplog.records[0].levelname == "INFO"
+        assert "Failed to retrieve site visits data for aa" in caplog.text
+
+        test_instance.shoppertrak_api_client.query.assert_has_calls(
+            [
+                mocker.call("site/aa", date(2023, 12, 1)),
+                mocker.call("site/bb", date(2023, 12, 1)),
+                mocker.call("site/cc", date(2023, 12, 1)),
+                mocker.call("site/aa", date(2023, 12, 2)),
+            ]
+        )
+        test_instance.shoppertrak_api_client.parse_response.assert_has_calls(
+            [
+                mocker.call(_TEST_XML_ROOT, date(2023, 12, 1), is_recovery_mode=True),
+                mocker.call(_TEST_XML_ROOT, date(2023, 12, 1), is_recovery_mode=True),
+                mocker.call(_TEST_XML_ROOT, date(2023, 12, 1), is_recovery_mode=True),
+            ]
+        )
+        mocked_process_recovered_data_method.assert_has_calls(
+            [
+                mocker.call(TEST_API_DATA[:3], _TEST_KNOWN_DATA_DICT),
+                mocker.call(TEST_API_DATA[3:4], _TEST_KNOWN_DATA_DICT),
+                mocker.call(TEST_API_DATA[4:], _TEST_KNOWN_DATA_DICT),
+            ]
+        )
+
     def test_recover_data_error(self, test_instance, mocker, caplog):
         test_instance.shoppertrak_api_client.query.side_effect = [
-            _TEST_XML_ROOT, APIStatus.ERROR, _TEST_XML_ROOT]
+            _TEST_XML_ROOT,
+            APIStatus.ERROR,
+            _TEST_XML_ROOT,
+        ]
         mocked_process_recovered_data_method = mocker.patch(
             "lib.pipeline_controller.PipelineController._process_recovered_data"
         )
@@ -404,8 +505,8 @@ class TestPipelineController:
         assert "Failed to retrieve site visits data for bb" in caplog.text
         test_instance.shoppertrak_api_client.parse_response.assert_has_calls(
             [
-               mocker.call(_TEST_XML_ROOT, date(2023, 12, 1), is_recovery_mode=True),
-               mocker.call(_TEST_XML_ROOT, date(2023, 12, 2), is_recovery_mode=True),
+                mocker.call(_TEST_XML_ROOT, date(2023, 12, 1), is_recovery_mode=True),
+                mocker.call(_TEST_XML_ROOT, date(2023, 12, 2), is_recovery_mode=True),
             ]
         )
         assert mocked_process_recovered_data_method.call_count == 2

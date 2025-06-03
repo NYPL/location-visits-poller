@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 
 from datetime import datetime
 from enum import Enum
+from helpers.util import log_based_on_poll_date
 from nypl_py_utils.functions.log_helper import create_log
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import RequestException
@@ -28,13 +29,14 @@ class APIStatus(Enum):
 class ShopperTrakApiClient:
     """Class for querying the ShopperTrak API for location visits data"""
 
-    def __init__(self, username, password, location_hours_dict):
+    def __init__(self, username, password, location_hours_dict, bad_poll_dates):
         self.logger = create_log("shoppertrak_api_client")
         self.base_url = os.environ["SHOPPERTRAK_API_BASE_URL"]
         self.auth = HTTPBasicAuth(username, password)
         self.max_retries = int(os.environ["MAX_RETRIES"])
         self.today_str = datetime.now(pytz.timezone("US/Eastern")).date().isoformat()
         self.location_hours_dict = location_hours_dict
+        self.bad_poll_dates = bad_poll_dates
 
     def query(self, endpoint, query_date, query_count=1):
         """
@@ -54,12 +56,11 @@ class ShopperTrakApiClient:
             )
             response.raise_for_status()
         except RequestException as e:
-            self.logger.error(f"Failed to retrieve response from {full_url}: {e}")
-            raise ShopperTrakApiClientError(
-                f"Failed to retrieve response from {full_url}: {e}"
-            ) from None
+            message = f"Failed to retrieve response from {full_url}: {e}"
+            self.logger.error(message)
+            raise ShopperTrakApiClientError(message) from None
 
-        response_status, response_root = self._check_response(response.text)
+        response_status, response_root = self._check_response(response.text, query_date)
         if response_status == APIStatus.SUCCESS:
             return response_root
         elif response_status == APIStatus.ERROR:
@@ -204,16 +205,22 @@ class ShopperTrakApiClient:
             "poll_date": self.today_str,
         }
 
-    def _check_response(self, response_text):
+    def _check_response(self, response_text, query_date):
         """
         Checks response for errors. If none are found, returns the XML root. Otherwise,
         either throws an error or returns an APIStatus where appropriate.
         """
+        is_bad_poll_date = bool(query_date in self.bad_poll_dates)
+
         try:
             root = ET.fromstring(response_text)
             error = root.find("error")
         except ET.ParseError as e:
-            self.logger.error(f"Could not parse XML response {response_text}: {e}")
+            log_based_on_poll_date(
+                self.logger,
+                f"Could not parse XML response {response_text}: {e}",
+                is_bad_poll_date,
+            )
             return APIStatus.ERROR, None
 
         if error is not None and error.text is not None:
@@ -226,10 +233,18 @@ class ShopperTrakApiClient:
                 self.logger.info("ShopperTrak is unavailable")
                 return APIStatus.RETRY, None
             else:
-                self.logger.error(f"Error found in XML response: {response_text}")
+                log_based_on_poll_date(
+                    self.logger,
+                    f"Error found in XML response: {response_text}",
+                    is_bad_poll_date,
+                )
                 return APIStatus.ERROR, None
         elif len(root.findall(".//traffic")) == 0:
-            self.logger.error(f"No traffic found in XML response: {response_text}")
+            log_based_on_poll_date(
+                self.logger,
+                f"No traffic found in XML response: {response_text}",
+                is_bad_poll_date,
+            )
             return APIStatus.ERROR, None
         else:
             return APIStatus.SUCCESS, root

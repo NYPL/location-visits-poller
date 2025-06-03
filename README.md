@@ -38,6 +38,7 @@ Every variable not marked as optional below is required for the poller to run. T
 | `AWS_REGION` | Always `us-east-1`. The AWS region used for the Redshift, S3, KMS, and Kinesis clients. |
 | `SHOPPERTRAK_API_BASE_URL` | ShopperTrak API base URL to which the poller sends requests. This is not a full endpoint, as either the `site` or `allsites` endpoints may be used. |
 | `MAX_RETRIES` | Number of times to try hitting the ShopperTrak API if it's busy before throwing an error |
+| `BAD_POLL_DATES` | List of known dates that are erroring |
 | `S3_BUCKET` | S3 bucket for the cache. This can be empty when `IGNORE_CACHE` is `True`. |
 | `S3_RESOURCE` | Name of the resource for the S3 cache. This can be empty when `IGNORE_CACHE` is `True`. |
 | `LOCATION_VISITS_SCHEMA_URL` | Platform API endpoint from which to retrieve the LocationVisits Avro schema |

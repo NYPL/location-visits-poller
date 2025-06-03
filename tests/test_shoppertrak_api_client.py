@@ -100,6 +100,7 @@ class TestPipelineController:
             os.environ["SHOPPERTRAK_USERNAME"],
             os.environ["SHOPPERTRAK_PASSWORD"],
             _TEST_LOCATION_HOURS_DICT,
+            [],
         )
 
     def test_query(self, test_instance, requests_mock, mocker):
@@ -116,7 +117,7 @@ class TestPipelineController:
         )
 
         assert test_instance.query("test - endpoint; one", date(2023, 12, 31)) == xml_root
-        mocked_check_response_method.assert_called_once_with(_TEST_API_RESPONSE)
+        mocked_check_response_method.assert_called_once_with(_TEST_API_RESPONSE, date(2023, 12, 31))
 
     def test_query_request_exception(self, test_instance, requests_mock, mocker, caplog):
         requests_mock.get(
@@ -145,6 +146,7 @@ class TestPipelineController:
             "test_endpoint", date(2023, 12, 31)) == APIStatus.ERROR
 
     def test_query_retry_success(self, test_instance, requests_mock, mocker):
+        test_date = date(2023, 12, 31)
         mock_sleep = mocker.patch("time.sleep")
         requests_mock.get(
             "https://test_shoppertrak_url/test_endpoint"
@@ -159,11 +161,11 @@ class TestPipelineController:
                          (APIStatus.SUCCESS, xml_root)],
         )
 
-        assert test_instance.query("test_endpoint", date(2023, 12, 31)) == xml_root
+        assert test_instance.query("test_endpoint", test_date) == xml_root
         mocked_check_response_method.assert_has_calls(
             [
-                mocker.call("error"), mocker.call("error2"),
-                mocker.call(_TEST_API_RESPONSE),
+                mocker.call("error", test_date), mocker.call("error2", test_date),
+                mocker.call(_TEST_API_RESPONSE, test_date),
             ]
         )
         assert mock_sleep.call_count == 2
@@ -201,42 +203,45 @@ class TestPipelineController:
         
         assert "Unknown API status: None" in caplog.text
 
-    def test_check_response(self, test_instance):
-        status, root = test_instance._check_response(_TEST_API_RESPONSE)
+    def test_check_response(self, test_instance, mocker):
+        status, root = test_instance._check_response(_TEST_API_RESPONSE, mocker.MagicMock())
         assert status == APIStatus.SUCCESS
         assert type(root) == ET.Element
 
     def test_check_response_unparsable(self, test_instance, caplog):
         with caplog.at_level(logging.ERROR):
-            status, root = test_instance._check_response("bad xml")
+            status, root = test_instance._check_response("bad xml", date(2023, 12, 31))
         
         assert "Could not parse XML response bad xml" in caplog.text
         assert status == APIStatus.ERROR
         assert root is None
 
-    def test_check_response_api_limit(self, test_instance, caplog):
+    def test_check_response_api_limit(self, test_instance, mocker, caplog):
         with pytest.raises(ShopperTrakApiClientError):
             test_instance._check_response(
                 '<?xml version="1.0" ?><message><error>E107</error><description>'
                 'Customer has exceeded the maximum number of requests allowed in a 24 '
-                'hour period.</description></message>')
+                'hour period.</description></message>',
+                mocker.MagicMock())
         assert "API limit exceeded" in caplog.text
 
-    def test_check_response_down(self, test_instance, caplog):
+    def test_check_response_down(self, test_instance, mocker, caplog):
         with caplog.at_level(logging.WARNING):
             status, root = test_instance._check_response(
                 '<?xml version="1.0" ?><message><error>E000</error>'
-                '<description>Server is down</description></message>')
+                '<description>Server is down</description></message>',
+                mocker.MagicMock())
 
         assert caplog.text == ""
         assert status == APIStatus.RETRY
         assert root is None
 
-    def test_check_response_busy(self, test_instance, caplog):
+    def test_check_response_busy(self, test_instance, mocker, caplog):
         with caplog.at_level(logging.WARNING):
             status, root = test_instance._check_response(
                 '<?xml version="1.0" ?><message><error>E108</error>'
-                '<description>Server is busy</description></message>')
+                '<description>Server is busy</description></message>',
+                mocker.MagicMock())
 
         assert caplog.text == ""
         assert status == APIStatus.RETRY
@@ -246,7 +251,8 @@ class TestPipelineController:
         with caplog.at_level(logging.ERROR):
             status, root = test_instance._check_response(
                 '<?xml version="1.0" ?><message><error>E999</error>'
-                '<description>Error!</description></message>')
+                '<description>Error!</description></message>',
+                date(2023, 12, 31))
 
         assert "Error found in XML response:" in caplog.text
         assert status == APIStatus.ERROR
@@ -257,11 +263,30 @@ class TestPipelineController:
             status, root = test_instance._check_response(
                 '<?xml version="1.0" ?><sites><site siteID="site1">'
                 '<date dateValue="20231231"><entrance name="EP 01">'
-                '</entrance></date></site></sites>')
+                '</entrance></date></site></sites>',
+                date(2023, 12, 31))
         
         assert "No traffic found in XML response:" in caplog.text
         assert status == APIStatus.ERROR
         assert root is None
+    
+    def test_check_response_bad_poller_date(self, test_instance, caplog):
+        test_instance.bad_poll_dates = [date(2023, 12, 31)]
+        with caplog.at_level(logging.INFO):
+            status, root = test_instance._check_response(
+                '<?xml version="1.0" ?><sites><site siteID="site1">'
+                '<date dateValue="20231231"><entrance name="EP 01">'
+                '</entrance></date></site></sites>',
+                date(2023, 12, 31))
+        
+        assert status == APIStatus.ERROR
+        assert root is None
+
+        # Verify that although ShopperTrak returned APIStatus.Error, we
+        # only send INFO messages for known bad poll dates. We don't alert
+        assert len(caplog.records) == 1
+        assert caplog.records[0].levelname == "INFO"
+        assert "No traffic found in XML response:" in caplog.text
 
     def test_parse_response(self, test_instance, caplog):
         with caplog.at_level(logging.WARNING):
