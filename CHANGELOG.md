@@ -1,4 +1,4 @@
-## 2025-03-11 -- v1.1.3
+## 2025-03-11 -- v1.1.4
 ### Added
 - Added 'BAD_POLL_DATES' environment variable, which is a list of date strings. If data is erroring in those days, we do not log an error
 
