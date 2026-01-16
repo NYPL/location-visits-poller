@@ -1,3 +1,7 @@
+## 2026-01-16 -- v1.1.5
+### Added
+- Use v2 hours and closures tables
+
 ## 2025-03-11 -- v1.1.4
 ### Added
 - Added 'BAD_POLL_DATES' environment variable, which is a list of date strings. If data is erroring in those days, we do not log an error

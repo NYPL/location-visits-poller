@@ -61,9 +61,8 @@ class PipelineController:
         if os.environ["REDSHIFT_DB_NAME"] != "production":
             redshift_suffix = "_" + os.environ["REDSHIFT_DB_NAME"]
         self.redshift_visits_table = "location_visits" + redshift_suffix
-        self.redshift_hours_table = "location_hours" + redshift_suffix
-        self.redshift_closures_table = "location_closures" + redshift_suffix
-        self.redshift_branch_codes_table = "branch_codes_map" + redshift_suffix
+        self.redshift_hours_table = "location_hours_v2" + redshift_suffix
+        self.redshift_closures_table = "location_closures_v2" + redshift_suffix
 
         all_sites_s3_client = S3Client(
             os.environ["ALL_SITES_S3_BUCKET"], os.environ["ALL_SITES_S3_RESOURCE"]
@@ -121,9 +120,7 @@ class PipelineController:
         """
         self.redshift_client.connect()
         raw_hours = self.redshift_client.execute_query(
-            build_redshift_hours_query(
-                self.redshift_hours_table, self.redshift_branch_codes_table
-            )
+            build_redshift_hours_query(self.redshift_hours_table)
         )
         self.redshift_client.close_connection()
         return {
@@ -162,9 +159,7 @@ class PipelineController:
         set by the API) to see if any data has since been recovered
         """
         closures_query = build_redshift_closures_query(
-            self.redshift_closures_table,
-            self.redshift_branch_codes_table,
-            start_date,
+            self.redshift_closures_table, start_date
         )
         found_sites_query = build_redshift_found_sites_query(
             self.redshift_visits_table, start_date, end_date

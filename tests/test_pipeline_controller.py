@@ -172,7 +172,7 @@ class TestPipelineController:
         test_instance.redshift_client.execute_query.assert_called_once_with("HOURS")
         test_instance.redshift_client.close_connection.assert_called_once()
         mocked_hours_query.assert_called_once_with(
-            "location_hours_test_redshift_name", "branch_codes_map_test_redshift_name"
+            "location_hours_v2_test_redshift_name"
         )
 
     def test_process_all_sites_data_single_run(
@@ -310,9 +310,7 @@ class TestPipelineController:
         )
         test_instance.redshift_client.close_connection.assert_called_once()
         mocked_closures_query.assert_called_once_with(
-            "location_closures_test_redshift_name",
-            "branch_codes_map_test_redshift_name",
-            date(2023, 12, 1),
+            "location_closures_v2_test_redshift_name", date(2023, 12, 1)
         )
         mocked_found_sites_query.assert_called_once_with(
             "location_visits_test_redshift_name", date(2023, 12, 1), date(2023, 12, 3)
