@@ -168,7 +168,7 @@ class PipelineController:
             self.redshift_visits_table, start_date, end_date
         )
         self.redshift_client.connect()
-        closed_site_dates = self.redshift_client.execute_query(closures_query)
+        raw_closed_site_dates = self.redshift_client.execute_query(closures_query)
         found_site_dates = self.redshift_client.execute_query(found_sites_query)
         self.redshift_client.execute_transaction([(create_table_query, None)])
         unhealthy_site_dates = self.redshift_client.execute_query(
@@ -179,12 +179,21 @@ class PipelineController:
         )
         self.redshift_client.execute_transaction([(REDSHIFT_DROP_QUERY, None)])
 
+        # If the location id is NULL, that means it as a system-wide closure
+        closed_site_dates = set()
+        for row in raw_closed_site_dates:
+            if row[0] is not None:
+                closed_site_dates.add(tuple(row))
+            else:
+                closed_site_dates.update(
+                    [(site_id[:2], row[1]) for site_id in self.all_site_ids]
+                )
+
         # Compare the set of (site_id, date) tuples found in Redshift to the set of all
         # such tuples that should exist to see if any sites are missing from Redshift
         # and need to be re-queried. This is as opposed to sites that are present in
         # Redshift but have unhealthy data. We do not count sites in extended closures
         # as missing.
-        closed_site_dates = set([tuple(row) for row in closed_site_dates])
         found_site_dates = set([tuple(row) for row in found_site_dates])
         all_dates = [
             start_date + timedelta(days=n) for n in range((end_date - start_date).days)

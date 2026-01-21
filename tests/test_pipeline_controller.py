@@ -20,6 +20,7 @@ _TEST_RECOVERABLE_SITE_DATES = (
     ["bb", date(2023, 12, 1)],
     ["cc", date(2023, 12, 1)],
     ["aa", date(2023, 12, 2)],
+    ["bb", date(2023, 12, 3)],
 )
 _TEST_ENCODED_RECORDS = [b"encoded1", b"encoded2", b"encoded3"]
 _TEST_XML_ROOT = ET.fromstring('<?xml version="1.0"?><element></element>')
@@ -333,7 +334,11 @@ class TestPipelineController:
             "lib.pipeline_controller.PipelineController._recover_data"
         )
         test_instance.redshift_client.execute_query.side_effect = [
-            (["cc", date(2023, 12, 1)], ["ee", date(2023, 12, 2)]),
+            (
+                ["cc", date(2023, 12, 1)],
+                ["ee", date(2023, 12, 2)],
+                [None, date(2023, 12, 3)],
+            ),
             (
                 ["aa", date(2023, 12, 1)],
                 ["bb", date(2023, 12, 1)],
@@ -342,6 +347,7 @@ class TestPipelineController:
                 ["aa", date(2023, 12, 2)],
                 ["bb", date(2023, 12, 2)],
                 ["cc", date(2023, 12, 2)],
+                ["bb", date(2023, 12, 3)],
             ),
             _TEST_RECOVERABLE_SITE_DATES,
             [k + v for k, v in _TEST_KNOWN_DATA_DICT.items()],
