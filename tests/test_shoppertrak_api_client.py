@@ -14,13 +14,13 @@ _PRETTY_API_RESPONSE = """
 <sites>
 	<site siteID="aa">
 		<date dateValue="20231231">
-			<entrance name="EP 01">
+			<entrance entranceName="EP 01">
 				<traffic code="01" exits="0" enters="0" startTime="000000"/>
 				<traffic code="01" exits="1" enters="2" startTime="010000"/>
 				<traffic code="01" exits="3" enters="4" startTime="020000"/>
 				<traffic code="01" exits="0" enters="0" startTime="030000"/>
 			</entrance>
-			<entrance name=" EP02 ">
+			<entrance entranceName=" EP02 ">
 				<traffic code="01" exits="5" enters="6" startTime="000000"/>
 				<traffic code="01" exits="0" enters="0" startTime="010000"/>
 				<traffic code="02" exits="0" enters="0" startTime="020000"/>
@@ -30,7 +30,7 @@ _PRETTY_API_RESPONSE = """
 	</site>
     <site siteID="bb - test sublocation">
 		<date dateValue="20231231">
-			<entrance name="EP 1">
+			<entrance entranceName="EP 1">
 				<traffic code="02" exits="99" enters="99" startTime="000000"/>
 				<traffic code="02" exits="0" enters="0" startTime="010000"/>
 				<traffic code="02" exits="0" enters="0" startTime="020000"/>
@@ -106,7 +106,7 @@ class TestPipelineController:
     def test_query(self, test_instance, requests_mock, mocker):
         requests_mock.get(
             "https://test_shoppertrak_url/test%20-%20endpoint%3B%20one"
-            "?date=20231231&increment=15&total_property=N",
+            "?date=20231231&increment=15&total_property_only=false&detail=entrance",
             text=_TEST_API_RESPONSE,
         )
 
@@ -136,7 +136,7 @@ class TestPipelineController:
     def test_query_non_fatal_error(self, test_instance, requests_mock, mocker):
         requests_mock.get(
             "https://test_shoppertrak_url/test_endpoint"
-            "?date=20231231&increment=15&total_property=N",
+            "?date=20231231&increment=15&total_property_only=false&detail=entrance",
             text="error",
         )
         mocker.patch("lib.ShopperTrakApiClient._check_response",
@@ -150,7 +150,7 @@ class TestPipelineController:
         mock_sleep = mocker.patch("time.sleep")
         requests_mock.get(
             "https://test_shoppertrak_url/test_endpoint"
-            "?date=20231231&increment=15&total_property=N",
+            "?date=20231231&increment=15&total_property_only=false&detail=entrance",
             [{"text": "error"}, {"text": "error2"}, {"text": _TEST_API_RESPONSE}],
         )
 
@@ -174,7 +174,7 @@ class TestPipelineController:
         mock_sleep = mocker.patch("time.sleep")
         requests_mock.get(
             "https://test_shoppertrak_url/test_endpoint"
-            "?date=20231231&increment=15&total_property=N",
+            "?date=20231231&increment=15&total_property_only=false&detail=entrance",
             text="error",
         )
         mocked_check_response_method = mocker.patch(
@@ -192,7 +192,7 @@ class TestPipelineController:
     def test_query_bad_status(self, test_instance, requests_mock, mocker, caplog):
         requests_mock.get(
             "https://test_shoppertrak_url/test_endpoint"
-            "?date=20231231&increment=15&total_property=N",
+            "?date=20231231&increment=15&total_property_only=false&detail=entrance",
             text="",
         )
         mocker.patch("lib.ShopperTrakApiClient._check_response",
@@ -254,7 +254,7 @@ class TestPipelineController:
                 '<description>Error!</description></message>',
                 date(2023, 12, 31))
 
-        assert "Error found in XML response:" in caplog.text
+        assert "Error code E999 found in XML response:" in caplog.text
         assert status == APIStatus.ERROR
         assert root is None
 

@@ -1,3 +1,7 @@
+## 2026-01-23 -- v1.2.0
+### Added
+- Use v2 of ShopperTrak API
+
 ## 2026-01-16 -- v1.1.5
 ### Added
 - Use v2 hours and closures tables

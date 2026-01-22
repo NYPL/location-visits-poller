@@ -1,6 +1,6 @@
 # LocationVisitsPoller
 
-The LocationVisitsPoller periodically hits the ShopperTrak API for the number of incoming and outgoing visitors per location per day and writes the data to LocationVisits Kinesis streams for ingest into the [BIC](https://github.com/NYPL/BIC). Note that because there are onerous ShopperTrak API rate limits and there is no QA version of the API, the poller is only deployed to production and there is no QA version.
+The LocationVisitsPoller periodically hits the [ShopperTrak API](https://drive.google.com/file/d/1VU38EvzZTp4wJYTIdA-zZuHgvfTN7Ei0/view?usp=sharing) for the number of incoming and outgoing visitors per location per day and writes the data to LocationVisits Kinesis streams for ingest into the [BIC](https://github.com/NYPL/BIC). Note that because there are onerous ShopperTrak API rate limits and there is no QA version of the API, the poller is only deployed to production and there is no QA version.
 
 ## Running locally
 * Add your `AWS_PROFILE` to the config file for the environment you want to run
