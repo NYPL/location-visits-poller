@@ -1,29 +1,11 @@
 _REDSHIFT_HOURS_QUERY = """
-    SELECT sierra_code, {hours_table}.weekday, regular_open, regular_close
-    FROM {hours_table}
-    LEFT JOIN {codes_table}
-        ON {hours_table}.drupal_location_id = {codes_table}.drupal_code
-    INNER JOIN
-    (
-        SELECT drupal_location_id, weekday, MAX(date_of_change) AS last_changed_date
-        FROM {hours_table}
-        GROUP BY drupal_location_id, weekday
-    ) current_hours
-    ON {hours_table}.drupal_location_id = current_hours.drupal_location_id
-        AND {hours_table}.weekday = current_hours.weekday
-        AND (
-            {hours_table}.date_of_change = current_hours.last_changed_date
-            OR (
-                {hours_table}.date_of_change IS NULL
-                AND current_hours.last_changed_date IS NULL
-            )
-        );"""
+    SELECT location_id, weekday, regular_open, regular_close
+    FROM {}
+    WHERE is_current;"""
 
 _REDSHIFT_CLOSURES_QUERY = """
-    SELECT sierra_code, closure_date
+    SELECT location_id, closure_date
     FROM {closures_table}
-    LEFT JOIN {codes_table}
-        ON {closures_table}.drupal_location_id = {codes_table}.drupal_code
     WHERE closure_date >= '{start_date}' AND is_full_day;"""
 
 _REDSHIFT_FOUND_SITES_QUERY = """
@@ -62,15 +44,13 @@ REDSHIFT_RECOVERABLE_QUERY = """
     ORDER BY increment_date, shoppertrak_site_id;"""
 
 
-def build_redshift_hours_query(hours_table, codes_table):
-    return _REDSHIFT_HOURS_QUERY.format(
-        hours_table=hours_table, codes_table=codes_table
-    )
+def build_redshift_hours_query(hours_table):
+    return _REDSHIFT_HOURS_QUERY.format(hours_table)
 
 
-def build_redshift_closures_query(closures_table, codes_table, start_date):
+def build_redshift_closures_query(closures_table, start_date):
     return _REDSHIFT_CLOSURES_QUERY.format(
-        closures_table=closures_table, codes_table=codes_table, start_date=start_date
+        closures_table=closures_table, start_date=start_date
     )
 
 

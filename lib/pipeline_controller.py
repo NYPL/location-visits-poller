@@ -61,9 +61,8 @@ class PipelineController:
         if os.environ["REDSHIFT_DB_NAME"] != "production":
             redshift_suffix = "_" + os.environ["REDSHIFT_DB_NAME"]
         self.redshift_visits_table = "location_visits" + redshift_suffix
-        self.redshift_hours_table = "location_hours" + redshift_suffix
-        self.redshift_closures_table = "location_closures" + redshift_suffix
-        self.redshift_branch_codes_table = "branch_codes_map" + redshift_suffix
+        self.redshift_hours_table = "location_hours_v2" + redshift_suffix
+        self.redshift_closures_table = "location_closures_v2" + redshift_suffix
 
         all_sites_s3_client = S3Client(
             os.environ["ALL_SITES_S3_BUCKET"], os.environ["ALL_SITES_S3_RESOURCE"]
@@ -121,9 +120,7 @@ class PipelineController:
         """
         self.redshift_client.connect()
         raw_hours = self.redshift_client.execute_query(
-            build_redshift_hours_query(
-                self.redshift_hours_table, self.redshift_branch_codes_table
-            )
+            build_redshift_hours_query(self.redshift_hours_table)
         )
         self.redshift_client.close_connection()
         return {
@@ -162,9 +159,7 @@ class PipelineController:
         set by the API) to see if any data has since been recovered
         """
         closures_query = build_redshift_closures_query(
-            self.redshift_closures_table,
-            self.redshift_branch_codes_table,
-            start_date,
+            self.redshift_closures_table, start_date
         )
         found_sites_query = build_redshift_found_sites_query(
             self.redshift_visits_table, start_date, end_date
@@ -173,7 +168,7 @@ class PipelineController:
             self.redshift_visits_table, start_date, end_date
         )
         self.redshift_client.connect()
-        closed_site_dates = self.redshift_client.execute_query(closures_query)
+        raw_closed_site_dates = self.redshift_client.execute_query(closures_query)
         found_site_dates = self.redshift_client.execute_query(found_sites_query)
         self.redshift_client.execute_transaction([(create_table_query, None)])
         unhealthy_site_dates = self.redshift_client.execute_query(
@@ -184,12 +179,21 @@ class PipelineController:
         )
         self.redshift_client.execute_transaction([(REDSHIFT_DROP_QUERY, None)])
 
+        # If the location id is NULL, that means it is a system-wide closure
+        closed_site_dates = set()
+        for row in raw_closed_site_dates:
+            if row[0] is not None:
+                closed_site_dates.add(tuple(row))
+            else:
+                closed_site_dates.update(
+                    [(site_id[:2], row[1]) for site_id in self.all_site_ids]
+                )
+
         # Compare the set of (site_id, date) tuples found in Redshift to the set of all
         # such tuples that should exist to see if any sites are missing from Redshift
         # and need to be re-queried. This is as opposed to sites that are present in
         # Redshift but have unhealthy data. We do not count sites in extended closures
         # as missing.
-        closed_site_dates = set([tuple(row) for row in closed_site_dates])
         found_site_dates = set([tuple(row) for row in found_site_dates])
         all_dates = [
             start_date + timedelta(days=n) for n in range((end_date - start_date).days)
