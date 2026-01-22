@@ -179,7 +179,7 @@ class PipelineController:
         )
         self.redshift_client.execute_transaction([(REDSHIFT_DROP_QUERY, None)])
 
-        # If the location id is NULL, that means it as a system-wide closure
+        # If the location id is NULL, that means it is a system-wide closure
         closed_site_dates = set()
         for row in raw_closed_site_dates:
             if row[0] is not None:
