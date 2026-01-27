@@ -8,7 +8,7 @@ from lib.pipeline_controller import PipelineController
 from lib.shoppertrak_api_client import APIStatus
 
 
-_TEST_LOCATION_HOURS_DICT = {("aa", "Sun"): (time(9), time(17))}
+_TEST_LOCATION_HOURS_DICT = {("aa", "Sunday"): (time(9), time(17))}
 _TEST_KNOWN_DATA_DICT = {
     ("aa", 1, datetime(2023, 12, 1, 9, 0, 0)): (99, True, 10, 11),
     ("aa", 2, datetime(2023, 12, 1, 9, 0, 0)): (98, False, 0, 0),
