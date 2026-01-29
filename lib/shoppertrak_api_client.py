@@ -50,8 +50,18 @@ class ShopperTrakApiClient:
         try:
             response = requests.get(
                 full_url,
-                params={"date": date_str, "increment": "15", "total_property": "N"},
                 auth=self.auth,
+                headers={
+                    "Content-Type": "application/xml",
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache",
+                },
+                params={
+                    "date": date_str,
+                    "increment": "15",
+                    "total_property_only": "false",
+                    "detail": "entrance",
+                },
             )
             response.raise_for_status()
         except RequestException as e:
@@ -88,12 +98,12 @@ class ShopperTrakApiClient:
         <sites>
             <site siteID="lib a">
                 <date dateValue="20240101">
-                    <entrance name="EP 01">
+                    <entrance entranceName="EP 01">
                         <traffic code="01" exits="10" enters="11" startTime="000000"/>
                         <traffic code="02" exits="0" enters="0" startTime="001500"/>
                         ...
                     </entrance>
-                    <entrance name="EP2">
+                    <entrance entranceName="EP2">
                         <traffic .../>
                         ...
                     </entrance>
@@ -123,7 +133,7 @@ class ShopperTrakApiClient:
                     )
                 for entrance_xml in date_xml.findall("entrance"):
                     seen_timestamps = set()
-                    entrance_val = self._get_xml_str(entrance_xml, "name")
+                    entrance_val = self._get_xml_str(entrance_xml, "entranceName")
                     if entrance_val:
                         entrance_val = self._cast_str_to_int(entrance_val.lstrip("EP"))
                     for traffic_xml in entrance_xml.findall("traffic"):
@@ -231,10 +241,24 @@ class ShopperTrakApiClient:
             elif error.text == "E000" or error.text == "E108":
                 self.logger.info("ShopperTrak is unavailable")
                 return APIStatus.RETRY, None
+            elif error.text == "E104":
+                log_based_on_poll_date(
+                    self.logger,
+                    f"The site ID supplied has multiple matches: {response_text}",
+                    is_bad_poll_date,
+                )
+                return APIStatus.ERROR, None
+            elif error.text == "E110":
+                log_based_on_poll_date(
+                    self.logger,
+                    f"The current user does not have access to the given site: {response_text}",
+                    is_bad_poll_date,
+                )
+                return APIStatus.ERROR, None
             else:
                 log_based_on_poll_date(
                     self.logger,
-                    f"Error found in XML response: {response_text}",
+                    f"Error code {error.text} found in XML response: {response_text}",
                     is_bad_poll_date,
                 )
                 return APIStatus.ERROR, None

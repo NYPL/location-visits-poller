@@ -1,3 +1,7 @@
+## 2026-01-29 -- v1.2.0
+### Added
+- Use v2 of ShopperTrak API
+
 ## 2026-01-27 -- v1.1.6
 ### Fixed
 - Fix weekday representation bug

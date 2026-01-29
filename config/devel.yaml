@@ -2,7 +2,7 @@
 PLAINTEXT_VARIABLES:
     AWS_REGION: us-east-1
     REDSHIFT_DB_NAME: dev
-    SHOPPERTRAK_API_BASE_URL: https://stws.shoppertrak.com/Traffic/Customer/v1.0/service/
+    SHOPPERTRAK_API_BASE_URL: https://stws.shoppertrak.com/Traffic/Customer/v2.0/service/
     LOCATION_VISITS_SCHEMA_URL: https://qa-platform.nypl.org/api/v0.1/current-schemas/LocationVisits
     ALL_SITES_S3_BUCKET: shoppertrak-sites
     ALL_SITES_S3_RESOURCE: site_ids.json
