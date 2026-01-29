@@ -43,9 +43,9 @@ _TEST_API_RESPONSE = _PRETTY_API_RESPONSE.replace("\n", "")
 _TEST_API_RESPONSE = _TEST_API_RESPONSE.replace("\t", "")
 
 _TEST_LOCATION_HOURS_DICT = {
-    ("aa", "Sun"): (time(9), time(17)), ("aa", "Mon"): (time(10), time(18)),
-    ("bb", "Sun"): (time(1), time(3)), ("bb", "Tue"): (time(11), time(19)),
-    ("cc", "Sun"): (None, None), ("cc", "Wed"): (time(12, 30), time(20, 30)), 
+    ("aa", "Sunday"): (time(9), time(17)), ("aa", "Monday"): (time(10), time(18)),
+    ("bb", "Sunday"): (time(1), time(3)), ("bb", "Tuesday"): (time(11), time(19)),
+    ("cc", "Sunday"): (None, None), ("cc", "Wednesday"): (time(12, 30), time(20, 30)), 
 }
 
 _PARSED_RESULT = [
@@ -311,7 +311,7 @@ class TestPipelineController:
         _TEST_RESULT[10]["is_missing_data"] = False
 
         _MODIFIED_LOCATION_HOURS_DICT = deepcopy(_TEST_LOCATION_HOURS_DICT)
-        _MODIFIED_LOCATION_HOURS_DICT[("bb", "Sun")] = (None, None)
+        _MODIFIED_LOCATION_HOURS_DICT[("bb", "Sunday")] = (None, None)
         test_instance.location_hours_dict = _MODIFIED_LOCATION_HOURS_DICT
 
         with caplog.at_level(logging.WARNING):
@@ -361,7 +361,7 @@ class TestPipelineController:
         _TEST_RESULT[11]["is_missing_data"] = True
 
         _MODIFIED_LOCATION_HOURS_DICT = deepcopy(_TEST_LOCATION_HOURS_DICT)
-        del _MODIFIED_LOCATION_HOURS_DICT[("bb", "Sun")]
+        del _MODIFIED_LOCATION_HOURS_DICT[("bb", "Sunday")]
         test_instance.location_hours_dict = _MODIFIED_LOCATION_HOURS_DICT
 
         with caplog.at_level(logging.WARNING):
@@ -369,7 +369,7 @@ class TestPipelineController:
                 ET.fromstring(_TEST_API_RESPONSE), date(2023, 12, 31)) == _TEST_RESULT
 
         assert (
-            "Location hours not found for 'bb' on 'Sun'. Setting is_missing_data to "
+            "Location hours not found for 'bb' on 'Sunday'. Setting is_missing_data to "
             "True."
         ) in caplog.text
 

@@ -8,7 +8,7 @@ from lib.pipeline_controller import PipelineController
 from lib.shoppertrak_api_client import APIStatus
 
 
-_TEST_LOCATION_HOURS_DICT = {("aa", "Sun"): (time(9), time(17))}
+_TEST_LOCATION_HOURS_DICT = {("aa", "Sunday"): (time(9), time(17))}
 _TEST_KNOWN_DATA_DICT = {
     ("aa", 1, datetime(2023, 12, 1, 9, 0, 0)): (99, True, 10, 11),
     ("aa", 2, datetime(2023, 12, 1, 9, 0, 0)): (98, False, 0, 0),
@@ -20,6 +20,7 @@ _TEST_RECOVERABLE_SITE_DATES = (
     ["bb", date(2023, 12, 1)],
     ["cc", date(2023, 12, 1)],
     ["aa", date(2023, 12, 2)],
+    ["bb", date(2023, 12, 3)],
 )
 _TEST_ENCODED_RECORDS = [b"encoded1", b"encoded2", b"encoded3"]
 _TEST_XML_ROOT = ET.fromstring('<?xml version="1.0"?><element></element>')
@@ -333,7 +334,11 @@ class TestPipelineController:
             "lib.pipeline_controller.PipelineController._recover_data"
         )
         test_instance.redshift_client.execute_query.side_effect = [
-            (["cc", date(2023, 12, 1)], ["ee", date(2023, 12, 2)]),
+            (
+                ["cc", date(2023, 12, 1)],
+                ["ee", date(2023, 12, 2)],
+                [None, date(2023, 12, 3)],
+            ),
             (
                 ["aa", date(2023, 12, 1)],
                 ["bb", date(2023, 12, 1)],
@@ -342,6 +347,7 @@ class TestPipelineController:
                 ["aa", date(2023, 12, 2)],
                 ["bb", date(2023, 12, 2)],
                 ["cc", date(2023, 12, 2)],
+                ["bb", date(2023, 12, 3)],
             ),
             _TEST_RECOVERABLE_SITE_DATES,
             [k + v for k, v in _TEST_KNOWN_DATA_DICT.items()],

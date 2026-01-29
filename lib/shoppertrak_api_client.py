@@ -14,7 +14,6 @@ from urllib.parse import quote
 
 ALL_SITES_ENDPOINT = "allsites"
 SINGLE_SITE_ENDPOINT = "site/"
-_WEEKDAY_MAP = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
 
 
 class APIStatus(Enum):
@@ -122,7 +121,7 @@ class ShopperTrakApiClient:
                 date_val = datetime.strptime(
                     self._get_xml_str(date_xml, "dateValue"), "%Y%m%d"
                 ).date()
-                weekday = _WEEKDAY_MAP[date_val.weekday()]
+                weekday = date_val.strftime("%A")
                 if date_val != input_date:
                     self.logger.error(
                         f"Request date does not match response date.\nRequest date: "
