@@ -23,6 +23,8 @@ TEST_ENV_VARS = {
     "KINESIS_STREAM_ARN": "test_kinesis_stream",
     "SHOPPERTRAK_USERNAME": "test_shoppertrak_username",
     "SHOPPERTRAK_PASSWORD": "test_shoppertrak_password",
+    "DATA_LAKE_S3_BUCKET": "test_data_lake_bucket",
+    "DATA_LAKE_S3_PATH": "test_data_lake_resource",
 }
 
 

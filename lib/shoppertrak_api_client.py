@@ -1,3 +1,4 @@
+import json
 import os
 import pytz
 import requests
@@ -43,7 +44,7 @@ class ShopperTrakApiClient:
         if the query was successful, b) returns APIStatus.ERROR if the query failed but
         others should be attempted, or c) waits and tries again if the API was busy.
         """
-        full_url = self.base_url + quote(endpoint)
+        full_url = self.base_url + "service/" + quote(endpoint)
         date_str = query_date.strftime("%Y%m%d")
 
         self.logger.info(f"Querying {endpoint} for {date_str} data")
@@ -89,6 +90,41 @@ class ShopperTrakApiClient:
         else:
             self.logger.error(f"Unknown API status: {response_status}")
             raise ShopperTrakApiClientError(f"Unknown API status: {response_status}")
+
+    def json_query(self, endpoint, query_date, query_count=1):
+        """
+        Used for Snowflake data lake. Sends query to ShopperTrak API and either a) returns
+        the JSON text if the query was successful, b) returns None if the query failed, or
+        c) waits and tries again if the API was busy.
+        """
+        full_url = self.base_url + "traffic/15min/" + quote(endpoint)
+        date_str = query_date.strftime("%Y%m%d")
+
+        response = requests.get(
+            full_url,
+            auth=self.auth,
+            headers={
+                "Content-Type": "application/json",
+                "Cache-Control": "no-cache",
+                "Pragma": "no-cache",
+            },
+            params={
+                "date": date_str,
+                "total_property_only": "false",
+                "detail": "entrance",
+            },
+        )
+
+        response_dict = json.loads(response.text)
+        if "code" in response_dict:
+            code = response_dict["code"]
+            if code == "000" or code == "E108":
+                if query_count < self.max_retries:
+                    time.sleep(300)
+                    return self.json_query(endpoint, query_date, query_count + 1)
+            return None
+
+        return response.text
 
     def parse_response(self, xml_root, input_date, is_recovery_mode=False):
         """

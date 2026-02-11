@@ -274,6 +274,9 @@ class TestPipelineController:
         mocked_recover_data_method = mocker.patch(
             "lib.pipeline_controller.PipelineController._recover_data"
         )
+        mocker.patch(
+            "lib.pipeline_controller.PipelineController._recover_and_send_json_data_to_s3"
+        )
         test_instance.redshift_client.execute_query.side_effect = [
             [],
             (
@@ -332,6 +335,9 @@ class TestPipelineController:
     ):
         mocked_recover_data_method = mocker.patch(
             "lib.pipeline_controller.PipelineController._recover_data"
+        )
+        mocker.patch(
+            "lib.pipeline_controller.PipelineController._recover_and_send_json_data_to_s3"
         )
         test_instance.redshift_client.execute_query.side_effect = [
             (
