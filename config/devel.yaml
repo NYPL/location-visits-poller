@@ -6,6 +6,8 @@ PLAINTEXT_VARIABLES:
     LOCATION_VISITS_SCHEMA_URL: https://qa-platform.nypl.org/api/v0.1/current-schemas/LocationVisits
     ALL_SITES_S3_BUCKET: shoppertrak-sites
     ALL_SITES_S3_RESOURCE: site_ids.json
+    DATA_LAKE_S3_BUCKET: nypl-data-lake-test
+    DATA_LAKE_S3_PATH: recovered_shoppertrak_visits_json/
     MAX_RETRIES: 3
     LOG_LEVEL: info
     LAST_POLL_DATE: 2024-03-25

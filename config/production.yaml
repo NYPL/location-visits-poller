@@ -2,12 +2,14 @@
 PLAINTEXT_VARIABLES:
     AWS_REGION: us-east-1
     REDSHIFT_DB_NAME: production
-    SHOPPERTRAK_API_BASE_URL: https://stws.shoppertrak.com/Traffic/Customer/v2.0/service/
+    SHOPPERTRAK_API_BASE_URL: https://stws.shoppertrak.com/Traffic/Customer/v2.0/
     LOCATION_VISITS_SCHEMA_URL: https://platform.nypl.org/api/v0.1/current-schemas/LocationVisits
     S3_BUCKET: bic-poller-states-production
     S3_RESOURCE: location_visits_poller_state.json
     ALL_SITES_S3_BUCKET: shoppertrak-sites
     ALL_SITES_S3_RESOURCE: site_ids.json
+    DATA_LAKE_S3_BUCKET: nypl-data-lake-test
+    DATA_LAKE_S3_PATH: recovered_shoppertrak_visits_json/
     KINESIS_BATCH_SIZE: 500
     MAX_RETRIES: 3
     BAD_POLL_DATES:

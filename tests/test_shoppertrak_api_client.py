@@ -105,7 +105,7 @@ class TestPipelineController:
 
     def test_query(self, test_instance, requests_mock, mocker):
         requests_mock.get(
-            "https://test_shoppertrak_url/test%20-%20endpoint%3B%20one"
+            "https://test_shoppertrak_url/service/test%20-%20endpoint%3B%20one"
             "?date=20231231&increment=15&total_property_only=false&detail=entrance",
             text=_TEST_API_RESPONSE,
         )
@@ -121,7 +121,7 @@ class TestPipelineController:
 
     def test_query_request_exception(self, test_instance, requests_mock, mocker, caplog):
         requests_mock.get(
-            "https://test_shoppertrak_url/test_endpoint", exc=ConnectTimeout
+            "https://test_shoppertrak_url/service/test_endpoint", exc=ConnectTimeout
         )
         mocked_check_response_method = mocker.patch(
             "lib.ShopperTrakApiClient._check_response")
@@ -130,12 +130,12 @@ class TestPipelineController:
             test_instance.query("test_endpoint", date(2023, 12, 31))
         
         assert ("Failed to retrieve response from "
-                "https://test_shoppertrak_url/test_endpoint") in caplog.text
+                "https://test_shoppertrak_url/service/test_endpoint") in caplog.text
         mocked_check_response_method.assert_not_called()
     
     def test_query_non_fatal_error(self, test_instance, requests_mock, mocker):
         requests_mock.get(
-            "https://test_shoppertrak_url/test_endpoint"
+            "https://test_shoppertrak_url/service/test_endpoint"
             "?date=20231231&increment=15&total_property_only=false&detail=entrance",
             text="error",
         )
@@ -149,7 +149,7 @@ class TestPipelineController:
         test_date = date(2023, 12, 31)
         mock_sleep = mocker.patch("time.sleep")
         requests_mock.get(
-            "https://test_shoppertrak_url/test_endpoint"
+            "https://test_shoppertrak_url/service/test_endpoint"
             "?date=20231231&increment=15&total_property_only=false&detail=entrance",
             [{"text": "error"}, {"text": "error2"}, {"text": _TEST_API_RESPONSE}],
         )
@@ -173,7 +173,7 @@ class TestPipelineController:
     def test_query_retry_fail(self, test_instance, requests_mock, mocker, caplog):
         mock_sleep = mocker.patch("time.sleep")
         requests_mock.get(
-            "https://test_shoppertrak_url/test_endpoint"
+            "https://test_shoppertrak_url/service/test_endpoint"
             "?date=20231231&increment=15&total_property_only=false&detail=entrance",
             text="error",
         )
@@ -191,7 +191,7 @@ class TestPipelineController:
 
     def test_query_bad_status(self, test_instance, requests_mock, mocker, caplog):
         requests_mock.get(
-            "https://test_shoppertrak_url/test_endpoint"
+            "https://test_shoppertrak_url/service/test_endpoint"
             "?date=20231231&increment=15&total_property_only=false&detail=entrance",
             text="",
         )
