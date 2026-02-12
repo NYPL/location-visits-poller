@@ -276,7 +276,7 @@ class PipelineController:
                 s3_path = (
                     os.environ["DATA_LAKE_S3_PATH"]
                     + visits_date.strftime("%Y/%m/%d/")
-                    + f"{site_id}.json"
+                    + f"{int(datetime.now(pytz.utc).timestamp())}.json"
                 )
                 self.data_lake_s3_client.put_object(
                     Key=s3_path, Body=site_response_json.encode("utf-8")
