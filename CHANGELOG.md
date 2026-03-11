@@ -1,3 +1,7 @@
+## 2026-03-11 -- v1.2.1/2
+### Added
+- Ignore all warning/error messages when a poll date is marked as bad
+
 ## 2026-01-29 -- v1.2.0
 ### Added
 - Use v2 of ShopperTrak API

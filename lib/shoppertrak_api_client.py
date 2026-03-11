@@ -46,6 +46,7 @@ class ShopperTrakApiClient:
         """
         full_url = self.base_url + "service/" + quote(endpoint)
         date_str = query_date.strftime("%Y%m%d")
+        is_bad_poll_date = bool(query_date in self.bad_poll_dates)
 
         self.logger.info(f"Querying {endpoint} for {date_str} data")
         try:
@@ -67,8 +68,11 @@ class ShopperTrakApiClient:
             response.raise_for_status()
         except RequestException as e:
             message = f"Failed to retrieve response from {full_url}: {e}"
-            self.logger.error(message)
-            raise ShopperTrakApiClientError(message) from None
+            log_based_on_poll_date(self.logger, message, is_bad_poll_date)
+            if is_bad_poll_date:
+                return APIStatus.ERROR
+            else:
+                raise ShopperTrakApiClientError(message) from None
 
         response_status, response_root = self._check_response(response.text, query_date)
         if response_status == APIStatus.SUCCESS:
@@ -81,15 +85,21 @@ class ShopperTrakApiClient:
                 time.sleep(300)
                 return self.query(endpoint, query_date, query_count + 1)
             else:
-                self.logger.error(
+                message = (
                     f"Hit retry limit: sent {self.max_retries} queries with no response"
                 )
-                raise ShopperTrakApiClientError(
-                    f"Hit retry limit: sent {self.max_retries} queries with no response"
-                )
+                log_based_on_poll_date(self.logger, message, is_bad_poll_date)
+                if is_bad_poll_date:
+                    return APIStatus.ERROR
+                else:
+                    raise ShopperTrakApiClientError(message) from None
         else:
-            self.logger.error(f"Unknown API status: {response_status}")
-            raise ShopperTrakApiClientError(f"Unknown API status: {response_status}")
+            message = f"Unknown API status: {response_status}"
+            log_based_on_poll_date(self.logger, message, is_bad_poll_date)
+            if is_bad_poll_date:
+                return APIStatus.ERROR
+            else:
+                raise ShopperTrakApiClientError(message) from None
 
     def json_query(self, endpoint, query_date, query_count=1):
         """
@@ -159,14 +169,17 @@ class ShopperTrakApiClient:
                 ).date()
                 weekday = date_val.strftime("%A")
                 if date_val != input_date:
-                    self.logger.error(
+                    message = (
                         f"Request date does not match response date.\nRequest date: "
                         f"{input_date}\nResponse date: {date_val}"
                     )
-                    raise ShopperTrakApiClientError(
-                        f"Request date does not match response date.\nRequest date: "
-                        f"{input_date}\nResponse date: {date_val}"
+                    log_based_on_poll_date(
+                        self.logger, message, input_date in self.bad_poll_dates
                     )
+                    if input_date in self.bad_poll_dates:
+                        return []
+                    else:
+                        raise ShopperTrakApiClientError(message)
                 for entrance_xml in date_xml.findall("entrance"):
                     seen_timestamps = set()
                     entrance_val = self._get_xml_str(entrance_xml, "entranceName")
@@ -182,9 +195,15 @@ class ShopperTrakApiClient:
                             is_recovery_mode,
                         )
                         if result_row["increment_start"] in seen_timestamps:
-                            self.logger.warning(
+                            message = (
                                 f"Received multiple results from the API for the same "
                                 f"site/date/orbit/timestamp combination: {result_row}"
+                            )
+                            log_based_on_poll_date(
+                                self.logger,
+                                message,
+                                input_date in self.bad_poll_dates,
+                                is_warning=True,
                             )
                         if result_row["is_healthy_data"] or not is_recovery_mode:
                             rows.append(result_row)
@@ -208,8 +227,12 @@ class ShopperTrakApiClient:
         status_code = self._get_xml_str(traffic_xml, "code")
         is_healthy_data = status_code == "01"
         if status_code != "01" and status_code != "02":
-            self.logger.warning(
-                f"Unknown code: '{status_code}'. Setting is_healthy_data to False."
+            message = f"Unknown code: '{status_code}'. Setting is_healthy_data to False"
+            log_based_on_poll_date(
+                self.logger,
+                message,
+                date_val in self.bad_poll_dates,
+                is_warning=True,
             )
 
         # Determine if unhealthy data with 0 entrances/exits is missing or imputed by
@@ -232,9 +255,15 @@ class ShopperTrakApiClient:
                         and start_time_val < location_hours[1]
                     )
             else:
-                self.logger.warning(
+                message = (
                     f"Location hours not found for '{branch_code}' on '{weekday}'. "
                     f"Setting is_missing_data to True."
+                )
+                log_based_on_poll_date(
+                    self.logger,
+                    message,
+                    date_val in self.bad_poll_dates,
+                    is_warning=True,
                 )
                 is_missing_data = True
 
@@ -271,8 +300,12 @@ class ShopperTrakApiClient:
         if error is not None and error.text is not None:
             # E107 is used when the daily API limit has been exceeded
             if error.text == "E107":
-                self.logger.error("API limit exceeded")
-                raise ShopperTrakApiClientError(f"API limit exceeded")
+                message = "API limit exceeded"
+                log_based_on_poll_date(self.logger, message, is_bad_poll_date)
+                if is_bad_poll_date:
+                    return APIStatus.ERROR, None
+                else:
+                    raise ShopperTrakApiClientError(message)
             # E000 is used when ShopperTrak is down and E108 is used when it's busy
             elif error.text == "E000" or error.text == "E108":
                 self.logger.info("ShopperTrak is unavailable")
