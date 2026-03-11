@@ -144,7 +144,10 @@ class PipelineController:
                 ALL_SITES_ENDPOINT, poll_date
             )
             if all_sites_response == APIStatus.ERROR:
-                self.logger.error("Failed to retrieve all sites visits data")
+                message = "Failed to retrieve all sites visits data"
+                log_based_on_poll_date(
+                    self.logger, message, poll_date in self.bad_poll_dates
+                )
                 return
 
             results = self.shoppertrak_api_client.parse_response(
@@ -254,7 +257,7 @@ class PipelineController:
             if site_response == APIStatus.ERROR:
                 message = f"Failed to retrieve site visits data for {site_id}"
                 log_based_on_poll_date(
-                    self.logger, message, (visits_date in self.bad_poll_dates)
+                    self.logger, message, visits_date in self.bad_poll_dates
                 )
             else:
                 site_results = self.shoppertrak_api_client.parse_response(
@@ -290,11 +293,10 @@ class PipelineController:
         results = []
         stale_ids = []
         for fresh_row in recovered_data:
-            key = (
-                fresh_row["shoppertrak_site_id"],
-                fresh_row["orbit"],
-                datetime.strptime(fresh_row["increment_start"], "%Y-%m-%d %H:%M:%S"),
+            data_timestamp = datetime.strptime(
+                fresh_row["increment_start"], "%Y-%m-%d %H:%M:%S"
             )
+            key = (fresh_row["shoppertrak_site_id"], fresh_row["orbit"], data_timestamp)
             if key not in known_data_dict:
                 results.append(fresh_row)
             else:
@@ -306,9 +308,15 @@ class PipelineController:
                     fresh_row["enters"] != known_row[2]
                     or fresh_row["exits"] != known_row[3]
                 ):
-                    self.logger.warning(
+                    message = (
                         f"Different healthy data found in API and Redshift: {key} "
                         f"mapped to {fresh_row} in the API and {known_row} in Redshift"
+                    )
+                    log_based_on_poll_date(
+                        self.logger,
+                        message,
+                        data_timestamp.date() in self.bad_poll_dates,
+                        is_warning=True,
                     )
 
         # Mark old rows for successfully recovered data as stale
