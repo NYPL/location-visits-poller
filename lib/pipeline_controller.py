@@ -218,7 +218,6 @@ class PipelineController:
             missing_site_dates = sorted(missing_site_dates, key=lambda x: (x[1], x[0]))
             self.logger.info("Re-querying for previously missing data")
             self._recover_data(missing_site_dates, dict(), is_recovery_mode=False)
-            self._recover_and_send_json_data_to_s3(missing_site_dates)
 
         # For all the site/date pairs with unhealthy data, form a dictionary of the
         # currently stored data for those sites on those dates where the key is (site
@@ -241,7 +240,6 @@ class PipelineController:
             }
         self.logger.info("Re-querying for previously unhealthy data")
         self._recover_data(unhealthy_site_dates, known_data_dict)
-        self._recover_and_send_json_data_to_s3(unhealthy_site_dates)
         self.redshift_client.close_connection()
 
     def _recover_data(self, site_dates, known_data_dict, is_recovery_mode=True):
@@ -264,26 +262,6 @@ class PipelineController:
                     site_response, visits_date, is_recovery_mode=is_recovery_mode
                 )
                 self._process_recovered_data(site_results, known_data_dict)
-
-    def _recover_and_send_json_data_to_s3(self, site_dates):
-        """
-        Temporary function. Individually query the ShopperTrak API for each site/date
-        pair with any unhealthy data, then save the JSON response to S3 for later
-        use in the data lake.
-        """
-        for site_id, visits_date in site_dates:
-            site_response_json = self.shoppertrak_api_client.json_query(
-                SINGLE_SITE_ENDPOINT + site_id, visits_date
-            )
-            if site_response_json is not None:
-                s3_path = (
-                    os.environ["DATA_LAKE_S3_PATH"]
-                    + visits_date.strftime("%Y/%m/%d/")
-                    + f"{int(datetime.now(pytz.utc).timestamp())}.json"
-                )
-                self.data_lake_s3_client.put_object(
-                    Key=s3_path, Body=site_response_json.encode("utf-8")
-                )
 
     def _process_recovered_data(self, recovered_data, known_data_dict):
         """
