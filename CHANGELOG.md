@@ -1,3 +1,7 @@
+## 2026-08-04 -- v1.2.3
+### Removed
+- Deleted all recovery JSON data uploads to S3. This was a temporary measure to test the data lake
+
 ## 2026-03-11 -- v1.2.1/2
 ### Added
 - Ignore all warning/error messages when a poll date is marked as bad

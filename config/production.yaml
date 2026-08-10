@@ -8,8 +8,6 @@ PLAINTEXT_VARIABLES:
     S3_RESOURCE: location_visits_poller_state.json
     ALL_SITES_S3_BUCKET: shoppertrak-sites
     ALL_SITES_S3_RESOURCE: site_ids.json
-    DATA_LAKE_S3_BUCKET: nypl-data-lake-test
-    DATA_LAKE_S3_PATH: recovered_shoppertrak_visits_json/
     KINESIS_BATCH_SIZE: 500
     MAX_RETRIES: 3
     BAD_POLL_DATES:
