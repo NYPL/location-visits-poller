@@ -71,11 +71,6 @@ class PipelineController:
         self.all_site_ids = set(all_sites_s3_client.fetch_cache())
         all_sites_s3_client.close()
 
-        # Temp addition while testing out Snowflake data lake
-        self.data_lake_s3_client = boto3.resource("s3").Bucket(
-            os.environ["DATA_LAKE_S3_BUCKET"]
-        )
-
         self.ignore_update = os.environ.get("IGNORE_UPDATE", False) == "True"
         self.ignore_cache = os.environ.get("IGNORE_CACHE", False) == "True"
         if not self.ignore_cache:
